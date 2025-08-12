@@ -1,0 +1,41 @@
+'use client'
+
+import React from 'react'
+import ImageUpload from './ImageUpload'
+
+interface ImageUploadWrapperProps {
+  value: string[]
+  onChange: (images: string[]) => void
+  maxFiles?: number
+  endpoint?: string
+  multiple?: boolean
+  className?: string
+}
+
+const endpointToFolderMap: Record<string, 'products' | 'collections' | 'categories'> = {
+  'productImage': 'products',
+  'collectionImage': 'collections',
+  'categoryImage': 'categories'
+}
+
+export function ImageUpload({ 
+  value, 
+  onChange, 
+  maxFiles = 10,
+  endpoint = 'productImage',
+  multiple = true,
+  className = ''
+}: ImageUploadWrapperProps) {
+  const folder = endpointToFolderMap[endpoint] || 'products'
+  
+  return (
+    <ImageUpload
+      images={value}
+      onImagesChange={onChange}
+      maxImages={maxFiles}
+      folder={folder}
+      multiple={multiple}
+      className={className}
+    />
+  )
+}
