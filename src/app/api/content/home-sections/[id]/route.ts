@@ -19,7 +19,7 @@ export async function GET(
       return NextResponse.json(
         {
           success: false,
-          error: 'Section introuvable'
+          error: 'Section non trouvée'
         },
         { status: 404 }
       )
@@ -44,37 +44,46 @@ export async function GET(
   }
 }
 
-// PUT - Mettre à jour une section
-export async function PUT(
+// PATCH - Mettre à jour une section
+export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     const data = await request.json()
-    const { title, description, type, content, isVisible } = data
+    
+    // Vérifier que la section existe
+    const existingSection = await prisma.homeSection.findUnique({
+      where: { id: params.id }
+    })
 
-    if (!title || !type) {
+    if (!existingSection) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Le titre et le type sont requis'
+          error: 'Section non trouvée'
         },
-        { status: 400 }
+        { status: 404 }
       )
     }
 
+    // Préparer les données à mettre à jour
+    const updateData: any = {}
+    
+    if (data.title !== undefined) updateData.title = data.title
+    if (data.description !== undefined) updateData.description = data.description
+    if (data.type !== undefined) updateData.type = data.type
+    if (data.isVisible !== undefined) updateData.isVisible = data.isVisible
+    if (data.order !== undefined) updateData.order = data.order
+    if (data.content !== undefined) {
+      updateData.content = typeof data.content === 'object' 
+        ? JSON.stringify(data.content) 
+        : data.content
+    }
+
     const updatedSection = await prisma.homeSection.update({
-      where: {
-        id: params.id
-      },
-      data: {
-        title,
-        description,
-        type,
-        content: typeof content === 'object' ? JSON.stringify(content) : content || '{}',
-        isVisible,
-        updatedAt: new Date()
-      }
+      where: { id: params.id },
+      data: updateData
     })
 
     return NextResponse.json({
@@ -102,18 +111,16 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Vérifier si la section existe
-    const section = await prisma.homeSection.findUnique({
-      where: {
-        id: params.id
-      }
+    // Vérifier que la section existe
+    const existingSection = await prisma.homeSection.findUnique({
+      where: { id: params.id }
     })
 
-    if (!section) {
+    if (!existingSection) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Section introuvable'
+          error: 'Section non trouvée'
         },
         { status: 404 }
       )
@@ -121,24 +128,20 @@ export async function DELETE(
 
     // Supprimer la section
     await prisma.homeSection.delete({
-      where: {
-        id: params.id
-      }
+      where: { id: params.id }
     })
 
-    // Réorganiser l'ordre des sections restantes
+    // Réorganiser les ordres des sections restantes
     const remainingSections = await prisma.homeSection.findMany({
-      where: {
-        order: { gt: section.order }
-      },
+      where: { order: { gt: existingSection.order } },
       orderBy: { order: 'asc' }
     })
 
     // Mettre à jour l'ordre des sections suivantes
-    const updatePromises = remainingSections.map((s, index) =>
+    const updatePromises = remainingSections.map((section, index) =>
       prisma.homeSection.update({
-        where: { id: s.id },
-        data: { order: section.order + index }
+        where: { id: section.id },
+        data: { order: existingSection.order + index }
       })
     )
 
