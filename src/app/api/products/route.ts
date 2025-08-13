@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { calculateProductStock } from '@/lib/inventory/stock-utils'
 
 export async function GET(request: NextRequest) {
   try {
@@ -101,12 +102,17 @@ export async function POST(request: NextRequest) {
 
     // Use Prisma transaction to create product and variants together
     const result = await prisma.$transaction(async (tx) => {
-      // Calculate stock based on variants
-      let productStock = parseInt(stock) || 0
+      // 🎯 LOGIQUE STOCK UNIFIÉE - CORRECTION MAJEURE
+      let productStock = 0
       if (hasVariants && variants && Array.isArray(variants) && variants.length > 0) {
-        // Si le produit a des variantes, le stock principal = 0
-        // Le stock total sera la somme des variantes
+        // 🔥 PRODUIT AVEC VARIANTES: Stock principal = 0 (stock réel dans les variantes)
         productStock = 0
+        const variantStockSum = variants.reduce((sum, variant) => sum + (parseInt(variant.stock) || 0), 0)
+        console.log(`🎆 API CREATE: Produit avec ${variants.length} variantes - Stock principal=0, Stock réel=${variantStockSum} depuis variantes`)
+      } else {
+        // 📦 PRODUIT SIMPLE: Utiliser le stock envoyé
+        productStock = parseInt(stock) || 0
+        console.log(`📦 API CREATE: Produit simple - Stock=${productStock} unités`)
       }
 
       // Create the product first
@@ -228,10 +234,15 @@ export async function PUT(request: NextRequest) {
 
     // Use transaction to update product and handle variants
     const result = await prisma.$transaction(async (tx) => {
-      // Calculate stock based on variants
+      // 🎯 LOGIQUE STOCK UNIFIÉE POUR LA MISE À JOUR
       if (hasVariants && newVariants && Array.isArray(newVariants) && newVariants.length > 0) {
-        // Si le produit a des variantes, le stock principal = 0
+        // 🔥 PRODUIT AVEC VARIANTES: Stock principal = 0 (stock réel dans les variantes)
         updateData.stock = 0
+        const variantStockSum = newVariants.reduce((sum, variant) => sum + (parseInt(variant.stock) || 0), 0)
+        console.log(`🎆 API UPDATE: Produit avec ${newVariants.length} variantes - Stock principal=0, Stock réel=${variantStockSum}`)
+      } else if (hasVariants === false) {
+        // 📦 CONVERSION VERS PRODUIT SIMPLE: Garder le stock envoyé
+        console.log(`📦 API UPDATE: Conversion vers produit simple - Stock=${updateData.stock || 0}`)
       }
 
       // Update the product

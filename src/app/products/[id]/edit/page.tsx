@@ -270,6 +270,19 @@ export default function EditProductPage() {
       return
     }
 
+    // Calculer automatiquement le stock si le produit a des variantes
+    const submitData = { ...formData }
+    if (formData.hasVariants && formData.variants.length > 0) {
+      // Le stock est calculé côté serveur - on s'assure juste que les variantes sont envoyées
+      const totalStock = formData.variants.reduce(
+        (sum, variant) => sum + (parseInt(variant.stock?.toString() || '0') || 0), 0
+      )
+      submitData.stock = totalStock.toString() // Pour affichage uniquement
+      console.log(`🔢 Stock calculé automatiquement: ${totalStock} unités depuis ${formData.variants.length} variantes`)
+    } else {
+      console.log(`📦 Stock manuel: ${submitData.stock} unités`)
+    }
+
     setLoading(true)
     try {
       const response = await fetch(`/api/products/${productId}`, {
@@ -277,7 +290,7 @@ export default function EditProductPage() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(submitData)
       })
 
       if (response.ok) {
@@ -521,17 +534,34 @@ export default function EditProductPage() {
 
                   {formData.trackStock && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Stock actuel
-                        </label>
-                        <Input
-                          type="number"
-                          value={formData.stock}
-                          onChange={(e) => handleInputChange('stock', e.target.value)}
-                          placeholder="0"
-                        />
-                      </div>
+                      {!formData.hasVariants ? (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Stock actuel
+                          </label>
+                          <Input
+                            type="number"
+                            value={formData.stock}
+                            onChange={(e) => handleInputChange('stock', e.target.value)}
+                            placeholder="0"
+                          />
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Stock total (calculé automatiquement)
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                              Auto
+                            </span>
+                          </label>
+                          <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-gray-900 font-medium">
+                            {formData.variants.reduce((sum, variant) => sum + (parseInt(variant.stock?.toString() || '0') || 0), 0)} unités
+                            <div className="text-xs text-gray-500 mt-1">
+                              Somme des {formData.variants.length} variante{formData.variants.length > 1 ? 's' : ''}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">

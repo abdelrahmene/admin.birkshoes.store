@@ -123,20 +123,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // Use transaction to update product and variants
     const result = await prisma.$transaction(async (tx) => {
-      // Update the product
-      const product = await tx.product.update({
-        where: { id: params.id },
-        data: updateData
-      })
-
-      // Handle variants if provided
+      // Handle variants first to calculate total stock
+      let calculatedStock = updateData.stock || 0
+      
       if (hasVariants && variants && Array.isArray(variants)) {
         // Delete existing variants
         await tx.productVariant.deleteMany({
           where: { productId: params.id }
         })
 
-        // Create new variants if any
+        // Create new variants if any and calculate total stock
         if (variants.length > 0) {
           const variantData = variants.map((variant: any) => ({
             productId: params.id,
@@ -150,13 +146,30 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           await tx.productVariant.createMany({
             data: variantData
           })
+          
+          // FORCER le calcul automatique - ignorer le stock envoyé par le frontend
+          calculatedStock = variantData.reduce((sum, v) => sum + v.stock, 0)
+          console.log(`🔄 API: Stock recalculé depuis ${variantData.length} variantes = ${calculatedStock} unités`)
+        } else {
+          calculatedStock = 0
+          console.log('🚨 API: Produit avec variantes mais aucune variante définie - stock = 0')
         }
       } else if (!hasVariants) {
-        // If hasVariants is false, remove all variants
+        // If hasVariants is false, remove all variants and utiliser le stock manuel
         await tx.productVariant.deleteMany({
           where: { productId: params.id }
         })
+        console.log(`📝 API: Produit simple - stock manuel = ${calculatedStock} unités`)
       }
+      
+      // TOUJOURS écraser le stock avec la valeur calculée
+      updateData.stock = calculatedStock
+
+      // Update the product
+      const product = await tx.product.update({
+        where: { id: params.id },
+        data: updateData
+      })
 
       // Return updated product with relations
       return await tx.product.findUnique({

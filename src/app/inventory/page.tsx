@@ -131,8 +131,9 @@ export default function InventoryPage() {
           bVal = b.name
           break
         case 'stock':
-          aVal = a.stock + a.totalVariantStock
-          bVal = b.stock + b.totalVariantStock
+          // 🔥 CORRIGÉ: Utiliser le stock total calculé par l'API
+          aVal = a.totalStock || 0
+          bVal = b.totalStock || 0
           break
         case 'value':
           aVal = a.stockValue
@@ -302,7 +303,7 @@ export default function InventoryPage() {
         {/* Navigation rapide */}
         <div className="bg-white rounded-xl shadow-sm border p-6">
           <h2 className="text-lg font-semibold mb-4">Actions rapides</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Link href="/inventory/alerts">
               <div className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
                 <AlertTriangle className="w-8 h-8 text-red-600 mb-2" />
@@ -324,6 +325,14 @@ export default function InventoryPage() {
                 <RefreshCw className="w-8 h-8 text-green-600 mb-2" />
                 <h3 className="font-medium text-gray-900">Ajustements</h3>
                 <p className="text-sm text-gray-600">Corriger les stocks et inventaires physiques</p>
+              </div>
+            </Link>
+            
+            <Link href="/inventory/sync">
+              <div className="p-4 border rounded-lg hover:bg-yellow-50 cursor-pointer transition-colors border-yellow-200">
+                <Settings className="w-8 h-8 text-yellow-600 mb-2" />
+                <h3 className="font-medium text-gray-900">Synchronisation</h3>
+                <p className="text-sm text-gray-600">Corriger automatiquement les incohérences</p>
               </div>
             </Link>
           </div>
@@ -414,19 +423,30 @@ export default function InventoryPage() {
                           </div>
                           <div className="text-right">
                             <div className="text-lg font-semibold text-gray-900">
-                              {product.stock + product.totalVariantStock}
+                              {/* 🔥 CORRIGÉ: Afficher le stock total calculé par l'API */}
+                              {product.totalStock || 0}
                             </div>
                             <div className="text-sm text-gray-500">
                               {formatCurrency(product.stockValue)}
                             </div>
+                            {/* Debug info */}
+                            {product.hasVariants && (
+                              <div className="text-xs text-blue-500">
+                                {product.variants.length} variante(s)
+                              </div>
+                            )}
                           </div>
                         </div>
                         
-                        {product.variants.length > 0 && (
+                        {product.hasVariants && (
                           <div className="mt-2">
                             <p className="text-xs text-gray-500 mb-1">{product.variants.length} variante(s)</p>
                             <div className="text-xs text-gray-400">
                               Stock variantes: {product.totalVariantStock}
+                            </div>
+                            {/* Debug: Montrer le stock DB vs calculé */}
+                            <div className="text-xs text-blue-400">
+                              DB: {product.stock} | Calculé: {product.totalStock}
                             </div>
                           </div>
                         )}

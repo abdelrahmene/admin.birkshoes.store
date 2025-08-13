@@ -35,14 +35,19 @@ interface Product {
     sku: string | null
   }[]
   totalVariantStock: number
+  totalStock: number // Stock calculé total
+  hasVariants: boolean
+  status: 'in_stock' | 'low_stock' | 'out_of_stock'
 }
 
 interface StockAdjustment {
   productId: string
+  variantId?: string // Pour les ajustements de variantes
   currentStock: number
   newStock: number
   difference: number
   reason: string
+  isVariant?: boolean
 }
 
 interface RecentAdjustment {
@@ -107,47 +112,72 @@ export default function StockAdjustmentsPage() {
     }
   }
 
-  const handleStockChange = (productId: string, newStock: string) => {
+  const handleStockChange = (productId: string, newStock: string, variantId?: string) => {
     const product = products.find(p => p.id === productId)
     if (!product) return
 
     const newStockNumber = parseInt(newStock) || 0
-    const currentStock = product.stock + product.totalVariantStock
+    let currentStock: number
+    let adjustmentKey: string
+
+    if (variantId) {
+      // Ajustement d'une variante spécifique
+      const variant = product.variants.find(v => v.id === variantId)
+      if (!variant) return
+      currentStock = variant.stock
+      adjustmentKey = `${productId}-${variantId}`
+    } else {
+      // Ajustement du stock total (pour produits sans variantes)
+      currentStock = product.totalStock || (product.stock + product.totalVariantStock)
+      adjustmentKey = productId
+    }
+
     const difference = newStockNumber - currentStock
 
     setAdjustments(prev => {
-      const existing = prev.find(adj => adj.productId === productId)
+      const existing = prev.find(adj => 
+        adj.productId === productId && 
+        (variantId ? adj.variantId === variantId : !adj.variantId)
+      )
+      
       if (existing) {
         return prev.map(adj => 
-          adj.productId === productId 
+          (adj.productId === productId && 
+           (variantId ? adj.variantId === variantId : !adj.variantId))
             ? { ...adj, newStock: newStockNumber, difference }
             : adj
         )
       } else if (difference !== 0) {
         return [...prev, {
           productId,
+          variantId,
           currentStock,
           newStock: newStockNumber,
           difference,
-          reason: ''
+          reason: '',
+          isVariant: !!variantId
         }]
       }
       return prev
     })
   }
 
-  const handleReasonChange = (productId: string, reason: string) => {
+  const handleReasonChange = (productId: string, reason: string, variantId?: string) => {
     setAdjustments(prev => 
       prev.map(adj => 
-        adj.productId === productId 
+        (adj.productId === productId && 
+         (variantId ? adj.variantId === variantId : !adj.variantId))
           ? { ...adj, reason }
           : adj
       )
     )
   }
 
-  const removeAdjustment = (productId: string) => {
-    setAdjustments(prev => prev.filter(adj => adj.productId !== productId))
+  const removeAdjustment = (productId: string, variantId?: string) => {
+    setAdjustments(prev => prev.filter(adj => 
+      !(adj.productId === productId && 
+        (variantId ? adj.variantId === variantId : !adj.variantId))
+    ))
   }
 
   const saveAdjustments = async () => {
@@ -162,9 +192,10 @@ export default function StockAdjustmentsPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               productId: adjustment.productId,
+              variantId: adjustment.variantId, // Inclure l'ID de variante si présent
               type: 'ADJUSTMENT',
               quantity: adjustment.difference,
-              reason: adjustment.reason || `Ajustement: ${adjustment.currentStock} → ${adjustment.newStock}`
+              reason: adjustment.reason || `Ajustement${adjustment.isVariant ? ' variante' : ''}: ${adjustment.currentStock} → ${adjustment.newStock}`
             })
           })
           return response.ok
@@ -190,7 +221,7 @@ export default function StockAdjustmentsPage() {
   }
 
   const getStockStatusColor = (product: Product) => {
-    const totalStock = product.stock + product.totalVariantStock
+    const totalStock = product.totalStock || (product.stock + product.totalVariantStock)
     if (totalStock === 0) return 'text-red-600'
     if (totalStock <= product.lowStock) return 'text-orange-600'
     return 'text-green-600'
@@ -279,11 +310,21 @@ export default function StockAdjustmentsPage() {
                 const product = products.find(p => p.id === adjustment.productId)
                 if (!product) return null
                 
+                const variant = adjustment.variantId ? 
+                  product.variants.find(v => v.id === adjustment.variantId) : null
+                
                 return (
-                  <div key={adjustment.productId} className="bg-white rounded-lg p-4 border border-blue-200">
+                  <div key={`${adjustment.productId}-${adjustment.variantId || 'main'}`} className="bg-white rounded-lg p-4 border border-blue-200">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
-                        <h4 className="font-medium text-gray-900">{product.name}</h4>
+                        <h4 className="font-medium text-gray-900">
+                          {product.name}
+                          {variant && (
+                            <span className="text-sm text-blue-600 ml-2">
+                              → {variant.name}
+                            </span>
+                          )}
+                        </h4>
                         <div className="flex items-center space-x-4 mt-1">
                           <span className="text-sm text-gray-600">
                             Stock actuel: {adjustment.currentStock}
@@ -297,16 +338,21 @@ export default function StockAdjustmentsPage() {
                             {adjustment.difference > 0 ? '+' : ''}{adjustment.difference}
                           </span>
                         </div>
+                        {adjustment.isVariant && (
+                          <div className="text-xs text-purple-600 mt-1">
+                            Ajustement de variante
+                          </div>
+                        )}
                         <input
                           type="text"
                           placeholder="Raison de l'ajustement..."
                           value={adjustment.reason}
-                          onChange={(e) => handleReasonChange(adjustment.productId, e.target.value)}
+                          onChange={(e) => handleReasonChange(adjustment.productId, e.target.value, adjustment.variantId)}
                           className="mt-2 w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
                         />
                       </div>
                       <button
-                        onClick={() => removeAdjustment(adjustment.productId)}
+                        onClick={() => removeAdjustment(adjustment.productId, adjustment.variantId)}
                         className="ml-4 p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg"
                       >
                         <X className="w-4 h-4" />
@@ -353,8 +399,8 @@ export default function StockAdjustmentsPage() {
                 </div>
               ) : (
                 filteredProducts.map((product) => {
-                  const totalStock = product.stock + product.totalVariantStock
-                  const pendingAdjustment = adjustments.find(adj => adj.productId === product.id)
+                  const totalStock = product.totalStock || (product.stock + product.totalVariantStock)
+                  const pendingMainAdjustment = adjustments.find(adj => adj.productId === product.id && !adj.variantId)
                   
                   return (
                     <div key={product.id} className="p-4 hover:bg-gray-50">
@@ -385,45 +431,83 @@ export default function StockAdjustmentsPage() {
                             </div>
                           </div>
                           
-                          {/* Champ d'ajustement */}
-                          <div className="mt-3 flex items-center space-x-3">
-                            <label className="text-sm font-medium text-gray-700 min-w-0">
-                              Nouveau stock:
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              defaultValue={totalStock}
-                              onChange={(e) => handleStockChange(product.id, e.target.value)}
-                              className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-                            />
-                            {pendingAdjustment && (
-                              <span className={`text-sm font-medium ${
-                                pendingAdjustment.difference > 0 ? 'text-green-600' : 'text-red-600'
-                              }`}>
-                                {pendingAdjustment.difference > 0 ? '+' : ''}
-                                {pendingAdjustment.difference}
-                              </span>
-                            )}
-                          </div>
+                          {/* Champ d'ajustement - seulement pour produits SANS variantes */}
+                          {product.variants.length === 0 && (
+                            <div className="mt-3 flex items-center space-x-3">
+                              <label className="text-sm font-medium text-gray-700 min-w-0">
+                                Nouveau stock:
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                defaultValue={totalStock}
+                                onChange={(e) => handleStockChange(product.id, e.target.value)}
+                                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                              />
+                              {pendingMainAdjustment && (
+                                <span className={`text-sm font-medium ${
+                                  pendingMainAdjustment.difference > 0 ? 'text-green-600' : 'text-red-600'
+                                }`}>
+                                  {pendingMainAdjustment.difference > 0 ? '+' : ''}
+                                  {pendingMainAdjustment.difference}
+                                </span>
+                              )}
+                            </div>
+                          )}
 
-                          {/* Variantes si disponibles */}
+                          {/* Gestion des variantes - ajustement individuel */}
                           {product.variants.length > 0 && (
                             <div className="mt-3">
-                              <p className="text-xs text-gray-500 mb-2">{product.variants.length} variante(s):</p>
-                              <div className="grid grid-cols-2 gap-2">
-                                {product.variants.slice(0, 4).map(variant => (
-                                  <div key={variant.id} className="text-xs p-2 bg-gray-50 rounded">
-                                    <div className="font-medium truncate">{variant.name}</div>
-                                    <div className="text-gray-600">Stock: {variant.stock}</div>
-                                  </div>
-                                ))}
+                              <div className="flex items-center justify-between mb-3">
+                                <p className="text-sm font-medium text-gray-700">Ajuster les variantes individuellement:</p>
+                                <p className="text-xs text-blue-600">Total: {product.totalVariantStock}</p>
                               </div>
-                              {product.variants.length > 4 && (
-                                <p className="text-xs text-gray-500 mt-1">
-                                  +{product.variants.length - 4} autre(s)...
-                                </p>
-                              )}
+                              <div className="space-y-3">
+                                {product.variants.map(variant => {
+                                  const pendingVariantAdjustment = adjustments.find(adj => 
+                                    adj.productId === product.id && adj.variantId === variant.id
+                                  )
+                                  
+                                  return (
+                                    <div key={variant.id} className="p-3 bg-gray-50 rounded-lg border">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <div className="flex-1">
+                                          <div className="font-medium text-sm text-gray-900">{variant.name}</div>
+                                          {variant.sku && (
+                                            <div className="text-xs text-gray-500">SKU: {variant.sku}</div>
+                                          )}
+                                        </div>
+                                        <div className="text-sm font-semibold text-gray-700">
+                                          Stock: {variant.stock}
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <label className="text-xs font-medium text-gray-600 min-w-0">
+                                          Nouveau:
+                                        </label>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          defaultValue={variant.stock}
+                                          onChange={(e) => handleStockChange(product.id, e.target.value, variant.id)}
+                                          className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-primary focus:border-transparent"
+                                        />
+                                        {pendingVariantAdjustment && (
+                                          <span className={`text-xs font-medium ${
+                                            pendingVariantAdjustment.difference > 0 ? 'text-green-600' : 'text-red-600'
+                                          }`}>
+                                            {pendingVariantAdjustment.difference > 0 ? '+' : ''}
+                                            {pendingVariantAdjustment.difference}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                              <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
+                                💡 Le stock total du produit = somme des stocks des variantes
+                              </div>
                             </div>
                           )}
                         </div>
@@ -496,20 +580,21 @@ export default function StockAdjustmentsPage() {
               <div className="space-y-2">
                 {[
                   'Inventaire physique',
-                  'Produits endommagés',
+                  'Produits endommagés', 
                   'Erreur de saisie',
-                  'Retour client'
-                ].map(reason => (
+                  'Retour client',
+                    'Ajustement variante'
+                  ].map(reason => (
                   <button
-                    key={reason}
-                    onClick={() => {
-                      // Appliquer cette raison aux ajustements en cours sans raison
-                      setAdjustments(prev => 
-                        prev.map(adj => 
-                          adj.reason === '' ? { ...adj, reason } : adj
-                        )
-                      )
-                    }}
+                  key={reason}
+                  onClick={() => {
+                  // Appliquer cette raison aux ajustements en cours sans raison
+                  setAdjustments(prev => 
+                  prev.map(adj => 
+                    adj.reason === '' ? { ...adj, reason } : adj
+                    )
+                    )
+                      }}
                     className="block w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-white hover:text-gray-900 rounded border border-gray-200 hover:border-gray-300"
                   >
                     {reason}

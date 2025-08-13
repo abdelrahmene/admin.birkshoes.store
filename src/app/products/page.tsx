@@ -36,6 +36,15 @@ interface Product {
   isActive: boolean
   isFeatured: boolean
   createdAt: string
+  // 🔥 AJOUT POUR LOGIQUE STOCK UNIFIÉE
+  variants?: {
+    id: string
+    name: string
+    stock: number
+    sku?: string
+  }[]
+  totalStock?: number
+  hasVariants?: boolean
 }
 
 export default function ProductsPage() {
@@ -53,7 +62,22 @@ export default function ProductsPage() {
       const response = await fetch('/api/products')
       if (response.ok) {
         const data = await response.json()
-        setProducts(data)
+        
+        // 🎯 CALCULER LE STOCK TOTAL POUR CHAQUE PRODUIT
+        const productsWithCalculatedStock = data.map(product => {
+          const hasVariants = product.variants && product.variants.length > 0
+          const totalStock = hasVariants 
+            ? product.variants.reduce((sum, variant) => sum + (variant.stock || 0), 0)
+            : product.stock
+          
+          return {
+            ...product,
+            totalStock,
+            hasVariants
+          }
+        })
+        
+        setProducts(productsWithCalculatedStock)
       }
     } catch (error) {
       console.error('Error fetching products:', error)
@@ -107,6 +131,11 @@ export default function ProductsPage() {
     if (stock === 0) return { label: 'Rupture', color: 'text-red-600' }
     if (stock <= lowStock) return { label: 'Stock faible', color: 'text-orange-600' }
     return { label: 'En stock', color: 'text-green-600' }
+  }
+
+  // 🔥 FONCTION POUR OBTENIR LE STOCK CORRECT (UNIFIÉ)
+  const getProductStock = (product: Product) => {
+    return product.totalStock !== undefined ? product.totalStock : product.stock
   }
 
   if (loading) {
@@ -191,7 +220,10 @@ export default function ProductsPage() {
                   <div>
                     <p className="text-sm text-gray-600">Stock faible</p>
                     <p className="text-2xl font-bold text-orange-600">
-                      {products.filter(p => p.stock <= p.lowStock && p.stock > 0).length}
+                      {products.filter(p => {
+                        const stock = getProductStock(p)
+                        return stock <= p.lowStock && stock > 0
+                      }).length}
                     </p>
                   </div>
                   <AlertTriangle className="h-8 w-8 text-orange-600" />
@@ -211,7 +243,7 @@ export default function ProductsPage() {
                   <div>
                     <p className="text-sm text-gray-600">Rupture de stock</p>
                     <p className="text-2xl font-bold text-red-600">
-                      {products.filter(p => p.stock === 0).length}
+                      {products.filter(p => getProductStock(p) === 0).length}
                     </p>
                   </div>
                   <Package className="h-8 w-8 text-red-600" />
@@ -297,7 +329,8 @@ export default function ProductsPage() {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {filteredProducts.map((product, index) => {
-                      const stockStatus = getStockStatus(product.stock, product.lowStock)
+                      const productStock = getProductStock(product)
+                      const stockStatus = getStockStatus(productStock, product.lowStock)
                       
                       return (
                         <motion.tr
@@ -347,11 +380,20 @@ export default function ProductsPage() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className={`text-sm font-medium ${stockStatus.color}`}>
-                              {product.stock}
+                              {productStock}
+                              {product.hasVariants && (
+                                <span className="text-xs text-blue-500 ml-1">({product.variants?.length}v)</span>
+                              )}
                             </div>
                             <div className={`text-xs ${stockStatus.color}`}>
                               {stockStatus.label}
                             </div>
+                            {/* Debug info en développement */}
+                            {product.hasVariants && process.env.NODE_ENV === 'development' && (
+                              <div className="text-xs text-gray-400 mt-1">
+                                DB: {product.stock} | Calc: {productStock}
+                              </div>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <Badge className={getStatusColor(product.status)}>

@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { calculateProductStock, calculateInventoryStats } from '@/lib/inventory/stock-utils'
 
 export async function GET() {
   try {
+    console.log('🔍 API INVENTORY: Récupération des produits avec logique stock unifiée...')
+    
     // Récupérer tous les produits avec leurs variantes et relations
     const products = await prisma.product.findMany({
       include: {
@@ -24,31 +27,32 @@ export async function GET() {
       orderBy: { name: 'asc' }
     })
 
-    // Transformer les données pour l'interface
+    console.log(`📦 API INVENTORY: ${products.length} produits récupérés`)
+
+    // Transformer les données en utilisant la logique unifiée
     const inventoryProducts = products.map(product => {
-      const totalVariantStock = product.variants.reduce((sum, variant) => sum + variant.stock, 0)
-      // LOGIQUE CORRIGÉE: Si le produit a des variantes, stock total = somme des variantes
-      // Sinon, utiliser le stock du produit principal
-      const totalStock = product.variants.length > 0 ? totalVariantStock : product.stock
-      
-      // Calculer la valeur du stock
-      const stockValue = totalStock * (product.cost || product.price)
-      
-      // Déterminer le statut du stock
-      let status: 'in_stock' | 'low_stock' | 'out_of_stock'
-      if (totalStock === 0) {
-        status = 'out_of_stock'
-      } else if (totalStock <= product.lowStock) {
-        status = 'low_stock'
-      } else {
-        status = 'in_stock'
+      // 🎯 UTILISER LA LOGIQUE UNIFIÉE
+      const stockCalc = calculateProductStock({
+        id: product.id,
+        name: product.name,
+        stock: product.stock,
+        lowStock: product.lowStock,
+        price: product.price,
+        cost: product.cost,
+        trackStock: product.trackStock,
+        variants: product.variants
+      })
+
+      // Log pour debug
+      if (product.variants.length > 0) {
+        console.log(`🎆 PRODUIT "${product.name}": ${product.variants.length} variantes, Stock DB=${product.stock}, Stock calculé=${stockCalc.totalStock}, Status=${stockCalc.status}`)
       }
 
       return {
         id: product.id,
         name: product.name,
         sku: product.sku,
-        stock: product.stock,
+        stock: product.stock, // Stock DB (pour info)
         lowStock: product.lowStock,
         trackStock: product.trackStock,
         price: product.price,
@@ -56,25 +60,29 @@ export async function GET() {
         category: product.category?.name || null,
         collection: product.collection?.name || null,
         variants: product.variants,
-        totalVariantStock,
-        stockValue,
-        status
+        
+        // 🔥 DONNÉES CALCULÉES AVEC LOGIQUE UNIFIÉE
+        totalStock: stockCalc.totalStock,
+        totalVariantStock: stockCalc.variantStockSum,
+        stockValue: stockCalc.stockValue,
+        status: stockCalc.status,
+        hasVariants: stockCalc.hasVariants
       }
     })
 
-    // Calculer les statistiques
-    const stats = {
-      totalProducts: inventoryProducts.length,
-      // CORRIGÉ: Utiliser le stock total calculé (pas d'addition)
-      totalStock: inventoryProducts.reduce((sum, product) => {
-        const productTotalStock = product.variants.length > 0 ? product.totalVariantStock : product.stock
-        return sum + productTotalStock
-      }, 0),
-      totalValue: inventoryProducts.reduce((sum, product) => sum + product.stockValue, 0),
-      lowStockProducts: inventoryProducts.filter(p => p.status === 'low_stock').length,
-      outOfStockProducts: inventoryProducts.filter(p => p.status === 'out_of_stock').length,
-      recentMovements: 0 // Sera calculé séparément
-    }
+    // 📊 Calculer les statistiques avec la logique unifiée
+    const baseStats = calculateInventoryStats(
+      products.map(p => ({
+        id: p.id,
+        name: p.name,
+        stock: p.stock,
+        lowStock: p.lowStock,
+        price: p.price,
+        cost: p.cost,
+        trackStock: p.trackStock,
+        variants: p.variants
+      }))
+    )
 
     // Compter les mouvements récents (7 derniers jours)
     const sevenDaysAgo = new Date()
@@ -88,14 +96,19 @@ export async function GET() {
       }
     })
 
-    stats.recentMovements = recentMovementsCount
+    const stats = {
+      ...baseStats,
+      recentMovements: recentMovementsCount
+    }
+
+    console.log(`📈 API INVENTORY: Stats calculées - Total: ${stats.totalStock} unités, Valeur: ${stats.totalValue.toLocaleString()} DZD`)
 
     return NextResponse.json({
       products: inventoryProducts,
       stats
     })
   } catch (error) {
-    console.error('Erreur lors de la récupération des produits d\'inventaire:', error)
+    console.error('❌ Erreur API INVENTORY:', error)
     return NextResponse.json(
       { error: 'Erreur lors de la récupération des données' },
       { status: 500 }

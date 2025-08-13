@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { VariantStockManager } from '@/components/inventory/VariantStockManager'
+import { calculateProductStock } from '@/lib/inventory/stock-utils'
 
 interface Product {
   id: string
@@ -166,9 +167,21 @@ export default function ProductStockPage({ params }: { params: { id: string } })
     )
   }
 
-  const totalVariantStock = product.variants.reduce((sum, variant) => sum + variant.stock, 0)
-  const totalStock = product.stock + totalVariantStock
-  const stockValue = totalStock * (product.cost || product.price)
+  // 🔥 UTILISER LA LOGIQUE STOCK UNIFIÉE
+  const stockCalculation = calculateProductStock({
+    id: product.id,
+    name: product.name,
+    stock: product.stock,
+    lowStock: product.lowStock,
+    price: product.price,
+    cost: product.cost,
+    trackStock: product.trackStock,
+    variants: product.variants
+  })
+  
+  const totalVariantStock = stockCalculation.variantStockSum
+  const totalStock = stockCalculation.totalStock
+  const stockValue = stockCalculation.stockValue
 
   return (
     <Sidebar>
@@ -341,22 +354,42 @@ export default function ProductStockPage({ params }: { params: { id: string } })
           ) : (
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-3xl font-bold text-gray-900">{product.stock}</div>
-                <p className="text-sm text-gray-600">
-                  Seuil d'alerte: {product.lowStock}
-                  {product.stock <= product.lowStock && (
-                    <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                      <AlertTriangle className="w-3 h-3 mr-1" />
-                      Stock faible
-                    </span>
-                  )}
-                </p>
+              <div className="flex items-center space-x-2">
+                <div className="text-3xl font-bold text-gray-900">
+                {stockCalculation.hasVariants ? '0' : product.stock}
               </div>
+              {stockCalculation.hasVariants && (
+              <div className="text-sm text-blue-600 bg-blue-50 px-2 py-1 rounded">
+              Stock géré par variantes
+              </div>
+              )}
+              </div>
+                <p className="text-sm text-gray-600">
+                Seuil d'alerte: {product.lowStock}
+                {stockCalculation.status === 'low_stock' && (
+                  <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                    <AlertTriangle className="w-3 h-3 mr-1" />
+                    Stock faible
+                  </span>
+                )}
+                {stockCalculation.status === 'out_of_stock' && (
+                  <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    <AlertTriangle className="w-3 h-3 mr-1" />
+                    Rupture de stock
+                  </span>
+                )}
+              </p>
+            </div>
               <div className="text-right">
                 <div className="text-lg font-semibold text-green-600">
-                  {formatCurrency(product.stock * (product.cost || product.price))}
+                  {formatCurrency(stockCalculation.hasVariants 
+                    ? 0 
+                    : product.stock * (product.cost || product.price)
+                  )}
                 </div>
-                <p className="text-sm text-gray-600">Valeur stock principal</p>
+                <p className="text-sm text-gray-600">
+                  {stockCalculation.hasVariants ? 'Stock géré par variantes' : 'Valeur stock principal'}
+                </p>
               </div>
             </div>
           )}
