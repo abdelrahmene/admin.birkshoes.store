@@ -2,10 +2,9 @@
 // 🔄 SYNCHRONISATION AUTOMATIQUE DES STOCKS
 // ================================================
 // Script pour corriger automatiquement les incohérences de stock
+// Utilise maintenant l'API externe au lieu de Prisma
 
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { apiClient } from '@/lib/api'
 
 export interface StockSyncResult {
   total: number
@@ -42,25 +41,18 @@ export async function syncAllProductStocks(): Promise<StockSyncResult> {
   try {
     console.log('🔄 Début de la synchronisation des stocks...')
 
-    // Récupérer tous les produits avec leurs variantes
-    const products = await prisma.product.findMany({
-      include: {
-        variants: {
-          select: {
-            id: true,
-            name: true,
-            stock: true
-          }
-        }
-      }
-    })
+    // Récupérer tous les produits avec leurs variantes via l'API
+    const response = await apiClient.get('/products?include=variants')
+    const products = response.data.data || response.data
 
     result.total = products.length
     console.log(`📦 ${products.length} produits à analyser`)
 
     for (const product of products) {
-      const hasVariants = product.variants.length > 0
-      const variantStockSum = product.variants.reduce((sum, variant) => sum + (variant.stock || 0), 0)
+      const hasVariants = product.variants && product.variants.length > 0
+      const variantStockSum = hasVariants 
+        ? product.variants.reduce((sum: number, variant: any) => sum + (variant.stock || 0), 0)
+        : 0
 
       let action: 'updated' | 'skipped' | 'error' = 'skipped'
       let reason = ''
@@ -73,19 +65,15 @@ export async function syncAllProductStocks(): Promise<StockSyncResult> {
           action = 'updated'
           reason = `Produit avec ${product.variants.length} variantes - stock principal mis à 0 (stock réel: ${variantStockSum})`
           
-          await prisma.product.update({
-            where: { id: product.id },
-            data: { stock: 0 }
-          })
+          // Mettre à jour via l'API
+          await apiClient.patch(`/products/${product.id}`, { stock: 0 })
 
           // Créer un mouvement de stock pour traçabilité
-          await prisma.stockMovement.create({
-            data: {
-              productId: product.id,
-              type: 'ADJUSTMENT',
-              quantity: product.stock,
-              reason: `Synchronisation automatique: ${product.stock} → 0 (stock géré par variantes)`
-            }
+          await apiClient.post('/inventory/stock-movements', {
+            productId: product.id,
+            type: 'ADJUSTMENT',
+            quantity: product.stock,
+            reason: `Synchronisation automatique: ${product.stock} → 0 (stock géré par variantes)`
           })
 
           result.updated++
@@ -117,7 +105,7 @@ export async function syncAllProductStocks(): Promise<StockSyncResult> {
         action,
         oldStock: product.stock,
         newStock,
-        variantCount: product.variants.length,
+        variantCount: hasVariants ? product.variants.length : 0,
         reason
       })
     }
@@ -154,49 +142,49 @@ export async function analyzeStockInconsistencies(): Promise<{
     needsSync: number
   }
 }> {
-  const products = await prisma.product.findMany({
-    include: {
-      variants: {
-        select: {
-          stock: true
+  try {
+    const response = await apiClient.get('/products?include=variants')
+    const products = response.data.data || response.data
+
+    const inconsistentProducts = []
+    let withVariants = 0
+    let withInconsistencies = 0
+
+    for (const product of products) {
+      const hasVariants = product.variants && product.variants.length > 0
+      const variantStockSum = hasVariants 
+        ? product.variants.reduce((sum: number, variant: any) => sum + (variant.stock || 0), 0)
+        : 0
+
+      if (hasVariants) {
+        withVariants++
+        
+        if (product.stock !== 0) {
+          withInconsistencies++
+          inconsistentProducts.push({
+            id: product.id,
+            name: product.name,
+            stock: product.stock,
+            variantCount: product.variants.length,
+            variantStockSum,
+            issue: `Stock principal (${product.stock}) devrait être 0 car le produit a ${product.variants.length} variantes`
+          })
         }
       }
     }
-  })
 
-  const inconsistentProducts = []
-  let withVariants = 0
-  let withInconsistencies = 0
-
-  for (const product of products) {
-    const hasVariants = product.variants.length > 0
-    const variantStockSum = product.variants.reduce((sum, variant) => sum + (variant.stock || 0), 0)
-
-    if (hasVariants) {
-      withVariants++
-      
-      if (product.stock !== 0) {
-        withInconsistencies++
-        inconsistentProducts.push({
-          id: product.id,
-          name: product.name,
-          stock: product.stock,
-          variantCount: product.variants.length,
-          variantStockSum,
-          issue: `Stock principal (${product.stock}) devrait être 0 car le produit a ${product.variants.length} variantes`
-        })
+    return {
+      inconsistentProducts,
+      summary: {
+        total: products.length,
+        withVariants,
+        withInconsistencies,
+        needsSync: withInconsistencies
       }
     }
-  }
-
-  return {
-    inconsistentProducts,
-    summary: {
-      total: products.length,
-      withVariants,
-      withInconsistencies,
-      needsSync: withInconsistencies
-    }
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'analyse:', error)
+    throw error
   }
 }
 
@@ -210,16 +198,8 @@ export async function syncSingleProduct(productId: string): Promise<{
   newStock: number
 }> {
   try {
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
-      include: {
-        variants: {
-          select: {
-            stock: true
-          }
-        }
-      }
-    })
+    const response = await apiClient.get(`/products/${productId}?include=variants`)
+    const product = response.data.data || response.data
 
     if (!product) {
       return {
@@ -230,24 +210,19 @@ export async function syncSingleProduct(productId: string): Promise<{
       }
     }
 
-    const hasVariants = product.variants.length > 0
+    const hasVariants = product.variants && product.variants.length > 0
     const oldStock = product.stock
 
     if (hasVariants && product.stock !== 0) {
-      // Corriger le stock principal
-      await prisma.product.update({
-        where: { id: productId },
-        data: { stock: 0 }
-      })
+      // Corriger le stock principal via l'API
+      await apiClient.patch(`/products/${productId}`, { stock: 0 })
 
       // Créer un mouvement de stock
-      await prisma.stockMovement.create({
-        data: {
-          productId: product.id,
-          type: 'ADJUSTMENT',
-          quantity: oldStock,
-          reason: `Synchronisation: ${oldStock} → 0 (stock géré par ${product.variants.length} variantes)`
-        }
+      await apiClient.post('/inventory/stock-movements', {
+        productId: product.id,
+        type: 'ADJUSTMENT',
+        quantity: oldStock,
+        reason: `Synchronisation: ${oldStock} → 0 (stock géré par ${product.variants.length} variantes)`
       })
 
       return {

@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma'
+import { apiClient } from '@/lib/api'
 
 /**
  * Recalcule automatiquement le stock d'un produit basé sur ses variantes
@@ -7,34 +7,12 @@ import { prisma } from '@/lib/prisma'
  */
 export async function recalculateProductStock(productId: string) {
   try {
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
-      include: {
-        variants: {
-          select: { stock: true }
-        }
-      }
+    // Appeler l'API backend pour recalculer le stock
+    const result = await apiClient.post('/inventory/recalculate-stock', {
+      productId
     })
 
-    if (!product) {
-      throw new Error(`Produit ${productId} non trouvé`)
-    }
-
-    // Si le produit a des variantes, le stock principal = 0
-    if (product.variants.length > 0) {
-      await prisma.product.update({
-        where: { id: productId },
-        data: { stock: 0 }
-      })
-    }
-    // Si le produit n'a pas de variantes, on laisse le stock principal tel quel
-
-    return {
-      productId,
-      hasVariants: product.variants.length > 0,
-      variantsTotalStock: product.variants.reduce((sum, v) => sum + v.stock, 0),
-      productStock: product.variants.length > 0 ? 0 : product.stock
-    }
+    return result
   } catch (error) {
     console.error('Erreur lors du recalcul du stock:', error)
     throw error

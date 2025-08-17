@@ -20,6 +20,7 @@ import {
   Loader2
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import { apiClient } from '@/lib/api'
 
 interface Collection {
   id: string
@@ -68,11 +69,8 @@ export default function CollectionsPage() {
 
   const fetchCollections = async () => {
     try {
-      const response = await fetch('/api/collections')
-      if (response.ok) {
-        const data = await response.json()
-        setCollections(data)
-      }
+      const data = await apiClient.get<Collection[]>('/collections?include=category')
+      setCollections(data)
     } catch (error) {
       console.error('Error fetching collections:', error)
       toast.error('Erreur lors du chargement des collections')
@@ -83,13 +81,11 @@ export default function CollectionsPage() {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('/api/categories')
-      if (response.ok) {
-        const data = await response.json()
-        setCategories(data)
-      }
+      const data = await apiClient.get<Category[]>('/categories')
+      setCategories(data)
     } catch (error) {
       console.error('Error fetching categories:', error)
+      toast.error('Erreur lors du chargement des catégories')
     }
   }
 
@@ -103,26 +99,14 @@ export default function CollectionsPage() {
 
     setCreating(true)
     try {
-      const response = await fetch('/api/collections', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(newCollection)
-      })
-
-      if (response.ok) {
-        toast.success('Collection créée avec succès!')
-        setShowCreateModal(false)
-        setNewCollection({ name: '', description: '', image: '', categoryId: '', isActive: true })
-        fetchCollections()
-      } else {
-        const error = await response.json()
-        toast.error(error.message || 'Erreur lors de la création')
-      }
-    } catch (error) {
+      await apiClient.post('/collections', newCollection)
+      toast.success('Collection créée avec succès!')
+      setShowCreateModal(false)
+      setNewCollection({ name: '', description: '', image: '', categoryId: '', isActive: true })
+      fetchCollections()
+    } catch (error: any) {
       console.error('Error creating collection:', error)
-      toast.error('Erreur lors de la création de la collection')
+      toast.error(error.message || 'Erreur lors de la création de la collection')
     } finally {
       setCreating(false)
     }
@@ -137,20 +121,12 @@ export default function CollectionsPage() {
     if (!collectionToDelete) return
 
     try {
-      const response = await fetch(`/api/collections/${collectionToDelete.id}`, {
-        method: 'DELETE'
-      })
-
-      if (response.ok) {
-        toast.success('Collection supprimée avec succès!')
-        fetchCollections()
-      } else {
-        const error = await response.json()
-        toast.error(error.message || 'Erreur lors de la suppression')
-      }
-    } catch (error) {
+      await apiClient.delete(`/collections/${collectionToDelete.id}`)
+      toast.success('Collection supprimée avec succès!')
+      fetchCollections()
+    } catch (error: any) {
       console.error('Error deleting collection:', error)
-      toast.error('Erreur lors de la suppression de la collection')
+      toast.error(error.message || 'Erreur lors de la suppression de la collection')
     } finally {
       setShowDeleteModal(false)
       setCollectionToDelete(null)

@@ -23,6 +23,8 @@ import {
   Settings
 } from 'lucide-react'
 import { Sidebar } from '@/components/layout/Sidebar'
+import { apiClient } from '@/lib/api'
+import { toast } from 'react-hot-toast'
 
 // Types pour les données d'inventaire
 interface InventoryProduct {
@@ -89,21 +91,64 @@ export default function InventoryPage() {
   const fetchInventoryData = async () => {
     setLoading(true)
     try {
-      const [productsRes, movementsRes] = await Promise.all([
-        fetch('/api/inventory/products'),
-        fetch('/api/inventory/movements?limit=10')
-      ])
-
-      if (productsRes.ok && movementsRes.ok) {
-        const productsData = await productsRes.json()
-        const movementsData = await movementsRes.json()
+      // Utiliser l'API des produits avec les variantes pour calculer les stocks
+      const products = await apiClient.get('/products?include=variants,category')
+      
+      // Calculer les statistiques côté client pour l'instant
+      const processedProducts: InventoryProduct[] = products.map((product: any) => {
+        const totalVariantStock = product.variants?.reduce((sum: number, variant: any) => sum + (variant.stock || 0), 0) || 0
+        const effectiveStock = product.variants?.length > 0 ? totalVariantStock : (product.stock || 0)
         
-        setProducts(productsData.products)
-        setStats(productsData.stats)
-        setRecentMovements(movementsData.movements)
-      }
+        let status: 'in_stock' | 'low_stock' | 'out_of_stock' = 'in_stock'
+        if (effectiveStock === 0) {
+          status = 'out_of_stock'
+        } else if (effectiveStock <= (product.lowStock || 5)) {
+          status = 'low_stock'
+        }
+        
+        return {
+          id: product.id,
+          name: product.name,
+          sku: product.sku,
+          stock: product.stock,
+          lowStock: product.lowStock || 5,
+          trackStock: product.trackStock,
+          price: product.price,
+          cost: product.cost,
+          category: product.category?.name || null,
+          collection: product.collection?.name || null,
+          variants: product.variants || [],
+          totalVariantStock,
+          totalStock: effectiveStock,
+          stockValue: effectiveStock * product.price,
+          status,
+          hasVariants: product.variants?.length > 0
+        }
+      })
+      
+      // Calculer les statistiques
+      const totalProducts = processedProducts.length
+      const totalStock = processedProducts.reduce((sum, p) => sum + p.totalStock, 0)
+      const totalValue = processedProducts.reduce((sum, p) => sum + p.stockValue, 0)
+      const lowStockProducts = processedProducts.filter(p => p.status === 'low_stock').length
+      const outOfStockProducts = processedProducts.filter(p => p.status === 'out_of_stock').length
+      
+      setProducts(processedProducts)
+      setStats({
+        totalProducts,
+        totalStock,
+        totalValue,
+        lowStockProducts,
+        outOfStockProducts,
+        recentMovements: 0 // À implémenter plus tard
+      })
+      
+      // Les mouvements seront implémentés plus tard
+      setRecentMovements([])
+      
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error)
+      toast.error('Erreur lors du chargement des données d\'inventaire')
     } finally {
       setLoading(false)
     }

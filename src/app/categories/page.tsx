@@ -18,9 +18,9 @@ import {
   Tag,
   Package,
   FolderTree,
-  Image,
-  X
+  Image
 } from 'lucide-react'
+import { apiClient } from '@/lib/api'
 import { toast } from 'react-hot-toast'
 import Link from 'next/link'
 
@@ -60,11 +60,9 @@ export default function CategoriesPage() {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('/api/categories')
-      if (response.ok) {
-        const data = await response.json()
-        setCategories(data)
-      }
+      const data = await apiClient.get<Category[]>('/categories')
+      console.log('🔍 Categories fetched:', data)
+      setCategories(data)
     } catch (error) {
       console.error('Error fetching categories:', error)
       toast.error('Erreur lors du chargement des catégories')
@@ -82,29 +80,18 @@ export default function CategoriesPage() {
     }
 
     try {
-      const response = await fetch('/api/categories', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ...newCategory,
-          parentId: newCategory.parentId === 'none' ? null : newCategory.parentId || null
-        })
+      await apiClient.post('/categories', {
+        ...newCategory,
+        parentId: newCategory.parentId === 'none' ? null : newCategory.parentId || null
       })
 
-      if (response.ok) {
-        toast.success('Catégorie créée avec succès!')
-        setShowCreateModal(false)
-        setNewCategory({ name: '', description: '', image: '', parentId: '' })
-        fetchCategories()
-      } else {
-        const error = await response.json()
-        toast.error(error.message || 'Erreur lors de la création')
-      }
-    } catch (error) {
+      toast.success('Catégorie créée avec succès!')
+      setShowCreateModal(false)
+      setNewCategory({ name: '', description: '', image: '', parentId: '' })
+      fetchCategories()
+    } catch (error: any) {
       console.error('Error creating category:', error)
-      toast.error('Erreur lors de la création de la catégorie')
+      toast.error(error.message || 'Erreur lors de la création de la catégorie')
     }
   }
 
@@ -114,20 +101,12 @@ export default function CategoriesPage() {
     }
 
     try {
-      const response = await fetch(`/api/categories/${categoryId}`, {
-        method: 'DELETE'
-      })
-
-      if (response.ok) {
-        toast.success('Catégorie supprimée avec succès!')
-        fetchCategories()
-      } else {
-        const error = await response.json()
-        toast.error(error.message || 'Erreur lors de la suppression')
-      }
-    } catch (error) {
+      await apiClient.delete(`/categories/${categoryId}`)
+      toast.success('Catégorie supprimée avec succès!')
+      fetchCategories()
+    } catch (error: any) {
       console.error('Error deleting category:', error)
-      toast.error('Erreur lors de la suppression')
+      toast.error(error.message || 'Erreur lors de la suppression')
     }
   }
 
@@ -317,7 +296,7 @@ export default function CategoriesPage() {
                   <div>
                     <p className="text-sm text-gray-600">Total produits</p>
                     <p className="text-2xl font-bold text-orange-600">
-                      {categories.reduce((acc, c) => acc + c._count.products, 0)}
+                      {categories.reduce((acc, c) => acc + (c._count?.products || 0), 0)}
                     </p>
                   </div>
                   <div className="bg-orange-100 p-3 rounded-full">
@@ -397,59 +376,50 @@ export default function CategoriesPage() {
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
-                            <div className="bg-blue-100 p-2 rounded-lg mr-3">
-                              <FolderTree className="h-5 w-5 text-blue-600" />
-                            </div>
+                            {category.image ? (
+                              <div className="h-10 w-10 mr-3 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
+                                <img src={category.image} alt={category.name} className="h-8 w-8 object-cover" />
+                              </div>
+                            ) : (
+                              <div className="bg-blue-100 p-2 rounded-lg mr-3">
+                                <FolderTree className="h-5 w-5 text-blue-600" />
+                              </div>
+                            )}
                             <div>
-                              <div className="text-sm font-semibold text-gray-900">
+                              <div className="text-sm font-medium text-gray-900 flex items-center">
+                                <FolderTree className="mr-2 h-4 w-4 text-blue-500" />
                                 {category.name}
                               </div>
-                              {category.description && (
-                                <div className="text-sm text-gray-500 truncate max-w-xs">
-                                  {category.description}
-                                </div>
-                              )}
+                              <div className="text-sm text-gray-500">{category.description?.slice(0, 50)}...</div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                            {category.slug}
-                          </span>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <code className="bg-gray-100 px-2 py-1 rounded text-xs">{category.slug}</code>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <span className="text-gray-400 italic">-</span>
+                          -
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {category._count.products} produits
+                            {category._count?.products || 0}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <div className="flex justify-end space-x-2">
+                          <div className="flex items-center justify-end space-x-2">
                             <Link href={`/categories/${category.id}`}>
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                className="hover:bg-blue-50 hover:border-blue-300"
-                              >
+                              <Button variant="ghost" size="sm">
                                 <Eye className="h-4 w-4" />
                               </Button>
                             </Link>
-                            <Link href={`/categories/${category.id}/edit`}>
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                className="hover:bg-yellow-50 hover:border-yellow-300"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                            </Link>
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50 hover:border-red-300"
+                            <Button variant="ghost" size="sm">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => handleDeleteCategory(category.id)}
+                              className="text-red-600 hover:text-red-800"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -457,7 +427,7 @@ export default function CategoriesPage() {
                         </td>
                       </motion.tr>
                     ))}
-
+                    
                     {/* Sub Categories */}
                     {subCategories.map((category, index) => (
                       <motion.tr
@@ -468,63 +438,53 @@ export default function CategoriesPage() {
                         className="hover:bg-purple-50 transition-colors duration-200"
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="w-8 border-b border-gray-300 mr-2"></div>
-                            <div className="bg-purple-100 p-2 rounded-lg mr-3">
-                              <Tag className="h-4 w-4 text-purple-600" />
-                            </div>
+                          <div className="flex items-center pl-8">
+                            {category.image ? (
+                              <div className="h-8 w-8 mr-3 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
+                                <img src={category.image} alt={category.name} className="h-6 w-6 object-cover" />
+                              </div>
+                            ) : (
+                              <div className="bg-purple-100 p-2 rounded-lg mr-3">
+                                <Tag className="h-4 w-4 text-purple-600" />
+                              </div>
+                            )}
                             <div>
-                              <div className="text-sm font-medium text-gray-900">
+                              <div className="text-sm font-medium text-gray-900 flex items-center">
+                                <Tag className="mr-2 h-4 w-4 text-purple-500" />
                                 {category.name}
                               </div>
-                              {category.description && (
-                                <div className="text-sm text-gray-500 truncate max-w-xs">
-                                  {category.description}
-                                </div>
-                              )}
+                              <div className="text-sm text-gray-500">{category.description?.slice(0, 50)}...</div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                            {category.slug}
-                          </span>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <code className="bg-gray-100 px-2 py-1 rounded text-xs">{category.slug}</code>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                             {category.parent?.name}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                            {category._count.products} produits
+                            {category._count?.products || 0}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <div className="flex justify-end space-x-2">
+                          <div className="flex items-center justify-end space-x-2">
                             <Link href={`/categories/${category.id}`}>
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                className="hover:bg-blue-50 hover:border-blue-300"
-                              >
+                              <Button variant="ghost" size="sm">
                                 <Eye className="h-4 w-4" />
                               </Button>
                             </Link>
-                            <Link href={`/categories/${category.id}/edit`}>
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                className="hover:bg-yellow-50 hover:border-yellow-300"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                            </Link>
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50 hover:border-red-300"
+                            <Button variant="ghost" size="sm">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => handleDeleteCategory(category.id)}
+                              className="text-red-600 hover:text-red-800"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -535,23 +495,30 @@ export default function CategoriesPage() {
                   </tbody>
                 </table>
               </div>
+              
+              {filteredCategories.length === 0 && (
+                <div className="text-center py-12">
+                  <FolderTree className="mx-auto h-12 w-12 text-gray-400" />
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">Aucune catégorie trouvée</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {searchQuery ? 'Essayez de modifier vos critères de recherche.' : 'Commencez par créer votre première catégorie.'}
+                  </p>
+                  {!searchQuery && (
+                    <div className="mt-6">
+                      <Button
+                        onClick={() => setShowCreateModal(true)}
+                        className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Créer une catégorie
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
-
-        {filteredCategories.length === 0 && searchQuery && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-12"
-          >
-            <div className="bg-gray-100 rounded-full w-16 h-16 mx-auto flex items-center justify-center mb-4">
-              <Search className="h-8 w-8 text-gray-400" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune catégorie trouvée</h3>
-            <p className="text-gray-500">Essayez de modifier votre recherche ou créez une nouvelle catégorie.</p>
-          </motion.div>
-        )}
       </div>
     </Sidebar>
   )

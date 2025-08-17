@@ -20,6 +20,8 @@ import {
   Image as ImageIcon
 } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
+import { apiClient } from '@/lib/api'
+import { toast } from 'react-hot-toast'
 import Link from 'next/link'
 
 interface Product {
@@ -59,28 +61,27 @@ export default function ProductsPage() {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch('/api/products')
-      if (response.ok) {
-        const data = await response.json()
+      const productsData = await apiClient.get<Product[]>('/products')
+      console.log('🔍 Products fetched:', productsData)
         
-        // 🎯 CALCULER LE STOCK TOTAL POUR CHAQUE PRODUIT
-        const productsWithCalculatedStock = data.map(product => {
-          const hasVariants = product.variants && product.variants.length > 0
-          const totalStock = hasVariants 
-            ? product.variants.reduce((sum, variant) => sum + (variant.stock || 0), 0)
-            : product.stock
-          
-          return {
-            ...product,
-            totalStock,
-            hasVariants
-          }
-        })
+      // 🎯 CALCULER LE STOCK TOTAL POUR CHAQUE PRODUIT
+      const productsWithCalculatedStock = productsData.map(product => {
+        const hasVariants = product.variants && product.variants.length > 0
+        const totalStock = hasVariants 
+          ? product.variants.reduce((sum, variant) => sum + (variant.stock || 0), 0)
+          : product.stock
         
-        setProducts(productsWithCalculatedStock)
-      }
+        return {
+          ...product,
+          totalStock,
+          hasVariants
+        }
+      })
+      
+      setProducts(productsWithCalculatedStock)
     } catch (error) {
       console.error('Error fetching products:', error)
+      toast.error('Erreur lors du chargement des produits')
     } finally {
       setLoading(false)
     }
@@ -92,22 +93,13 @@ export default function ProductsPage() {
     }
 
     try {
-      const response = await fetch(`/api/products/${productId}`, {
-        method: 'DELETE'
-      })
-
-      if (response.ok) {
-        // Remove product from local state
-        setProducts(prev => prev.filter(p => p.id !== productId))
-        // Show success message (you can use toast here)
-        alert('Produit supprimé avec succès!')
-      } else {
-        const error = await response.json()
-        alert(error.error || 'Erreur lors de la suppression')
-      }
-    } catch (error) {
+      await apiClient.delete(`/products/${productId}`)
+      // Remove product from local state
+      setProducts(prev => prev.filter(p => p.id !== productId))
+      toast.success('Produit supprimé avec succès!')
+    } catch (error: any) {
       console.error('Error deleting product:', error)
-      alert('Erreur lors de la suppression du produit')
+      toast.error(error.message || 'Erreur lors de la suppression du produit')
     }
   }
 
@@ -388,12 +380,6 @@ export default function ProductsPage() {
                             <div className={`text-xs ${stockStatus.color}`}>
                               {stockStatus.label}
                             </div>
-                            {/* Debug info en développement */}
-                            {product.hasVariants && process.env.NODE_ENV === 'development' && (
-                              <div className="text-xs text-gray-400 mt-1">
-                                DB: {product.stock} | Calc: {productStock}
-                              </div>
-                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <Badge className={getStatusColor(product.status)}>

@@ -18,6 +18,8 @@ import {
   Bell
 } from 'lucide-react'
 import { Sidebar } from '@/components/layout/Sidebar'
+import { apiClient } from '@/lib/api'
+import { toast } from 'react-hot-toast'
 
 // Types
 interface AlertProduct {
@@ -69,14 +71,65 @@ export default function InventoryAlertsPage() {
   const fetchAlerts = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/inventory/alerts')
-      if (response.ok) {
-        const data = await response.json()
-        setAlertProducts(data.products)
-        setStats(data.stats)
-      }
+      const products = await apiClient.get('/products?include=variants,category')
+      
+      // Filtrer et traiter les produits avec alertes
+      const alertProducts: AlertProduct[] = products
+        .map((product: any) => {
+          const totalVariantStock = product.variants?.reduce((sum: number, variant: any) => sum + (variant.stock || 0), 0) || 0
+          const effectiveStock = product.variants?.length > 0 ? totalVariantStock : (product.stock || 0)
+          const lowStockThreshold = product.lowStock || 5
+          
+          let status: 'out_of_stock' | 'low_stock' | null = null
+          let alertLevel: 'critical' | 'warning' = 'warning'
+          
+          if (effectiveStock === 0) {
+            status = 'out_of_stock'
+            alertLevel = 'critical'
+          } else if (effectiveStock <= lowStockThreshold) {
+            status = 'low_stock'
+            alertLevel = effectiveStock <= Math.floor(lowStockThreshold / 2) ? 'critical' : 'warning'
+          }
+          
+          if (!status) return null // Pas d'alerte
+          
+          return {
+            id: product.id,
+            name: product.name,
+            sku: product.sku,
+            stock: product.stock,
+            lowStock: lowStockThreshold,
+            price: product.price,
+            cost: product.cost,
+            category: product.category?.name || null,
+            collection: product.collection?.name || null,
+            variants: product.variants || [],
+            totalVariantStock,
+            totalStock: effectiveStock,
+            status,
+            alertLevel
+          }
+        })
+        .filter(Boolean) // Supprimer les produits sans alerte
+      
+      // Calculer les statistiques
+      const outOfStock = alertProducts.filter(p => p.status === 'out_of_stock').length
+      const lowStock = alertProducts.filter(p => p.status === 'low_stock').length
+      const estimatedLoss = alertProducts
+        .filter(p => p.status === 'out_of_stock')
+        .reduce((sum, p) => sum + (p.price * 5), 0) // Estimer 5 ventes perdues par produit en rupture
+      
+      setAlertProducts(alertProducts)
+      setStats({
+        outOfStock,
+        lowStock,
+        total: alertProducts.length,
+        estimatedLoss
+      })
+      
     } catch (error) {
       console.error('Erreur lors du chargement des alertes:', error)
+      toast.error('Erreur lors du chargement des alertes de stock')
     } finally {
       setLoading(false)
     }
