@@ -131,7 +131,7 @@ const MediaLibraryPage: React.FC = () => {
       toast.success(`${files.length} fichier(s) uploadé(s) avec succès`)
     } catch (error) {
       console.error('Upload error:', error)
-      toast.error('Erreur lors de l\\'upload des fichiers')
+      toast.error("Erreur lors de l'upload des fichiers")
     } finally {
       setIsUploading(false)
     }

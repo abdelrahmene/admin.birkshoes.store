@@ -44,11 +44,11 @@ import {
   Video,
   Link
 } from 'lucide-react'
-import { cn } from '../../utils/cn'
+import { cn } from '@/lib/utils'
 import { toast } from 'react-hot-toast'
-import { Sidebar } from '../../components/layout/Sidebar'
-import { SectionEditor } from '../../components/content/SectionEditor'
-import { apiClient } from '../../lib/api'
+import { Sidebar } from '@/components/layout/Sidebar'
+import { SectionEditor } from '@/components/content/SectionEditor'
+import { apiClient } from '@/services/api'
 
 // Types
 interface HomeSection {

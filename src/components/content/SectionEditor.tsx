@@ -52,6 +52,7 @@ interface MediaFile {
   alt?: string
   tags?: string[]
   createdAt: string
+  folder: string
 }
 
 interface SectionEditorProps {

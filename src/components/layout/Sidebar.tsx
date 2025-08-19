@@ -17,6 +17,7 @@ import {
   Search,
   Menu,
   X,
+  LogOut,
   Warehouse,
   ArrowUpDown,
   AlertTriangle,
@@ -27,6 +28,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/contexts/AuthContext'
 
 type NavigationItem = {
   name: string
@@ -117,6 +119,7 @@ export function Sidebar({ children }: SidebarProps) {
 
 function SidebarContent({ pathname, onNavigate }: { pathname: string, onNavigate?: () => void }) {
   const [expandedItems, setExpandedItems] = useState<string[]>(['Inventaire'])
+  const { user, logout } = useAuth()
   
   const toggleExpanded = (itemName: string) => {
     setExpandedItems(prev => 
@@ -124,6 +127,11 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string, onNavigate
         ? prev.filter(name => name !== itemName)
         : [...prev, itemName]
     )
+  }
+
+  const handleLogout = () => {
+    logout()
+    if (onNavigate) onNavigate()
   }
   
   return (
@@ -268,16 +276,31 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string, onNavigate
 
       {/* User info */}
       <div className="px-6 py-4 border-t">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-            <span className="text-xs font-medium text-gray-600">AF</span>
+        <div className="flex items-center space-x-3 mb-3">
+          <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+            <span className="text-xs font-medium text-primary">
+              {user?.name?.charAt(0) || user?.email?.charAt(0) || 'A'}
+            </span>
           </div>
           <div className="flex-1">
-            <p className="text-sm font-medium text-gray-900">Admin</p>
-            <p className="text-xs text-gray-500">admin@birkshoes.store</p>
+            <p className="text-sm font-medium text-gray-900">
+              {user?.name || 'Admin'}
+            </p>
+            <p className="text-xs text-gray-500">
+              {user?.email || 'admin@birkshoes.com'}
+            </p>
           </div>
           <Bell className="text-gray-400 hover:text-gray-600 cursor-pointer" size={18} />
         </div>
+        
+        {/* Logout Button */}
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors group"
+        >
+          <LogOut className="mr-3 flex-shrink-0 text-gray-500 group-hover:text-red-600" size={16} />
+          <span>Se déconnecter</span>
+        </button>
       </div>
     </div>
   )

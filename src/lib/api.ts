@@ -19,7 +19,7 @@ export class ApiClient {
     const url = `${this.baseURL}${endpoint}`;
     
     // Récupérer le token d'authentification
-    const token = typeof window !== 'undefined' ? localStorage.getItem('auth-token') : null;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
     
     const config: RequestInit = {
       headers: {
@@ -83,7 +83,7 @@ export class ApiClient {
     const formData = new FormData();
     formData.append('file', file);
 
-    const token = typeof window !== 'undefined' ? localStorage.getItem('auth-token') : null;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
 
     const response = await fetch(`${this.baseURL}/api/upload`, {
       method: 'POST',
