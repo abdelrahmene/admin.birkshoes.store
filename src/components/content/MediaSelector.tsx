@@ -3,25 +3,21 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
+  X,
+  Upload,
   Search,
-  Filter,
   Grid,
   List,
-  Upload,
-  X,
-  Check,
-  ImageIcon,
+  Image as ImageIcon,
   Video,
   File,
-  Folder,
-  Calendar,
-  Eye,
-  Trash2,
-  Download,
-  Tag,
-  MoreVertical
+  Check,
+  Loader2,
+  FolderOpen,
+  Calendar
 } from 'lucide-react'
 import { cn } from '../../utils/cn'
+import { toast } from 'react-hot-toast'
 
 interface MediaFile {
   id: string
@@ -43,6 +39,7 @@ interface MediaSelectorProps {
   multiple?: boolean
   mediaFiles: MediaFile[]
   onRefresh: () => void
+  acceptedTypes?: string[]
 }
 
 const MediaSelector: React.FC<MediaSelectorProps> = ({
@@ -51,63 +48,72 @@ const MediaSelector: React.FC<MediaSelectorProps> = ({
   onSelect,
   multiple = false,
   mediaFiles,
-  onRefresh
+  onRefresh,
+  acceptedTypes = ['image/*', 'video/*']
 }) => {
+  const [selectedFiles, setSelectedFiles] = useState<MediaFile[]>([])
   const [searchQuery, setSearchQuery] = useState('')
-  const [filterType, setFilterType] = useState('all')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const [selectedFiles, setSelectedFiles] = useState<string[]>([])
-  const [showUploadModal, setShowUploadModal] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [filterFolder, setFilterFolder] = useState<string>('')
 
-  // Reset when opening
+  // Réinitialiser la sélection quand le modal s'ouvre
   useEffect(() => {
     if (isOpen) {
       setSelectedFiles([])
       setSearchQuery('')
-      setFilterType('all')
     }
   }, [isOpen])
 
-  // Filter files based on search and type
+  // Filtrer les fichiers selon les critères
   const filteredFiles = mediaFiles.filter(file => {
     const matchesSearch = file.originalName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          file.filename.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesFolder = !filterFolder || file.folder === filterFolder
+    const matchesType = acceptedTypes.some(type => {
+      if (type === 'image/*') return file.mimeType.startsWith('image/')
+      if (type === 'video/*') return file.mimeType.startsWith('video/')
+      return file.mimeType === type
+    })
     
-    const matchesType = filterType === 'all' || 
-                       (filterType === 'images' && file.mimeType.startsWith('image/')) ||
-                       (filterType === 'videos' && file.mimeType.startsWith('video/')) ||
-                       (filterType === 'documents' && !file.mimeType.startsWith('image/') && !file.mimeType.startsWith('video/'))
-    
-    return matchesSearch && matchesType
+    return matchesSearch && matchesFolder && matchesType
   })
 
-  const handleFileSelect = (fileId: string) => {
-    if (multiple) {
-      setSelectedFiles(prev => 
-        prev.includes(fileId) 
-          ? prev.filter(id => id !== fileId)
-          : [...prev, fileId]
-      )
-    } else {
-      setSelectedFiles([fileId])
+  // Obtenir les dossiers uniques
+  const folders = Array.from(new Set(mediaFiles.map(file => file.folder).filter(Boolean)))
+
+  const handleFileSelect = (file: MediaFile) => {
+    if (!multiple) {
+      setSelectedFiles([file])
+      return
     }
+
+    setSelectedFiles(prev => {
+      const isSelected = prev.some(f => f.id === file.id)
+      if (isSelected) {
+        return prev.filter(f => f.id !== file.id)
+      } else {
+        return [...prev, file]
+      }
+    })
   }
 
   const handleConfirmSelection = () => {
-    const selectedMediaFiles = filteredFiles.filter(file => selectedFiles.includes(file.id))
-    onSelect(selectedMediaFiles)
-    onClose()
+    if (selectedFiles.length > 0) {
+      onSelect(selectedFiles)
+    }
   }
 
-  const handleFileUpload = async (files: FileList) => {
-    if (!files.length) return
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (!files || files.length === 0) return
 
     setIsUploading(true)
+
     try {
       const uploadPromises = Array.from(files).map(async (file) => {
         const formData = new FormData()
-        formData.append('file', file)
+        formData.append('file', file) // Utiliser 'file' au lieu de 'files'
         formData.append('folder', 'content')
 
         const response = await fetch('/api/upload', {
@@ -116,19 +122,26 @@ const MediaSelector: React.FC<MediaSelectorProps> = ({
         })
 
         if (!response.ok) {
-          throw new Error(`Upload failed for ${file.name}`)
+          const errorData = await response.json()
+          throw new Error(errorData.error || `Upload failed for ${file.name}`)
         }
 
         return response.json()
       })
 
-      await Promise.all(uploadPromises)
-      onRefresh() // Refresh media list
-      setShowUploadModal(false)
+      const results = await Promise.all(uploadPromises)
+      const successCount = results.filter(r => r.success).length
+      
+      if (successCount > 0) {
+        toast.success(`${successCount} fichier(s) uploadé(s) avec succès`)
+        onRefresh()
+      }
     } catch (error) {
       console.error('Upload error:', error)
+      toast.error(error instanceof Error ? error.message : 'Erreur lors de l\'upload')
     } finally {
       setIsUploading(false)
+      event.target.value = '' // Reset input
     }
   }
 
@@ -137,7 +150,7 @@ const MediaSelector: React.FC<MediaSelectorProps> = ({
     const k = 1024
     const sizes = ['B', 'KB', 'MB', 'GB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
   const getFileIcon = (mimeType: string) => {
@@ -149,74 +162,96 @@ const MediaSelector: React.FC<MediaSelectorProps> = ({
   if (!isOpen) return null
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-      onClick={onClose}
-    >
+    <AnimatePresence>
       <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full h-[80vh] overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-[60]"
+        onClick={onClose}
       >
-        {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold">Médiathèque</h2>
-              <p className="text-purple-100 mt-1">
-                Sélectionnez {multiple ? 'vos images' : 'une image'}
-              </p>
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full h-[80vh] overflow-hidden flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="bg-gray-50 border-b border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Sélectionner un média
+              </h2>
+              <button
+                onClick={onClose}
+                className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <button
-              onClick={onClose}
-              className="w-10 h-10 bg-white bg-opacity-10 hover:bg-opacity-20 rounded-lg flex items-center justify-center transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
 
-        {/* Toolbar */}
-        <div className="bg-gray-50 border-b border-gray-200 p-4">
-          <div className="flex items-center justify-between gap-4">
+            {/* Toolbar */}
             <div className="flex items-center gap-4">
-              {/* Search */}
+              {/* Upload Button */}
               <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  type="file"
+                  multiple
+                  accept={acceptedTypes.join(',')}
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                />
+                <button
+                  disabled={isUploading}
+                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isUploading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  {isUploading ? 'Upload...' : 'Upload'}
+                </button>
+              </div>
+
+              {/* Search */}
+              <div className="flex-1 relative max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Rechercher des fichiers..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
-              {/* Filter */}
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">Tous les fichiers</option>
-                <option value="images">Images</option>
-                <option value="videos">Vidéos</option>
-                <option value="documents">Documents</option>
-              </select>
+              {/* Folder Filter */}
+              {folders.length > 0 && (
+                <select
+                  value={filterFolder}
+                  onChange={(e) => setFilterFolder(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Tous les dossiers</option>
+                  {folders.map(folder => (
+                    <option key={folder} value={folder}>
+                      {folder || 'Sans dossier'}
+                    </option>
+                  ))}
+                </select>
+              )}
 
               {/* View Mode */}
-              <div className="flex items-center bg-gray-200 rounded-lg p-1">
+              <div className="flex items-center bg-gray-100 rounded-lg p-1">
                 <button
                   onClick={() => setViewMode('grid')}
                   className={cn(
                     'p-2 rounded-md transition-colors',
                     viewMode === 'grid'
-                      ? 'bg-white text-blue-600 shadow-sm'
+                      ? 'bg-white shadow-sm text-blue-600'
                       : 'text-gray-600 hover:text-gray-900'
                   )}
                 >
@@ -227,7 +262,7 @@ const MediaSelector: React.FC<MediaSelectorProps> = ({
                   className={cn(
                     'p-2 rounded-md transition-colors',
                     viewMode === 'list'
-                      ? 'bg-white text-blue-600 shadow-sm'
+                      ? 'bg-white shadow-sm text-blue-600'
                       : 'text-gray-600 hover:text-gray-900'
                   )}
                 >
@@ -235,242 +270,155 @@ const MediaSelector: React.FC<MediaSelectorProps> = ({
                 </button>
               </div>
             </div>
-
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-600">
-                {filteredFiles.length} fichier{filteredFiles.length > 1 ? 's' : ''}
-                {selectedFiles.length > 0 && ` • ${selectedFiles.length} sélectionné${selectedFiles.length > 1 ? 's' : ''}`}
-              </span>
-              
-              <button
-                onClick={() => setShowUploadModal(true)}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Upload className="w-4 h-4" />
-                Uploader
-              </button>
-            </div>
           </div>
-        </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-6">
-          {viewMode === 'grid' ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {filteredFiles.map((file) => {
-                const Icon = getFileIcon(file.mimeType)
-                const isSelected = selectedFiles.includes(file.id)
-                
-                return (
-                  <div
-                    key={file.id}
-                    onClick={() => handleFileSelect(file.id)}
-                    className={cn(
-                      'relative bg-white border-2 rounded-lg overflow-hidden cursor-pointer transition-all hover:shadow-md',
-                      isSelected
-                        ? 'border-blue-500 ring-2 ring-blue-500 ring-opacity-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    )}
-                  >
-                    <div className="aspect-square p-2">
-                      {file.mimeType.startsWith('image/') ? (
-                        <img
-                          src={file.url}
-                          alt={file.alt || file.originalName}
-                          className="w-full h-full object-cover rounded"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded">
-                          <Icon className="w-8 h-8 text-gray-400" />
+          {/* Content */}
+          <div className="flex-1 overflow-auto p-6">
+            {filteredFiles.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                <FolderOpen className="w-16 h-16 mb-4" />
+                <h3 className="text-xl font-medium mb-2">Aucun fichier trouvé</h3>
+                <p className="text-center">
+                  {searchQuery || filterFolder
+                    ? 'Aucun fichier ne correspond aux critères de recherche.'
+                    : 'Commencez par uploader des fichiers.'}
+                </p>
+              </div>
+            ) : viewMode === 'grid' ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {filteredFiles.map(file => {
+                  const isSelected = selectedFiles.some(f => f.id === file.id)
+                  const FileIcon = getFileIcon(file.mimeType)
+                  
+                  return (
+                    <div
+                      key={file.id}
+                      onClick={() => handleFileSelect(file)}
+                      className={cn(
+                        'relative group cursor-pointer rounded-lg border-2 overflow-hidden transition-all',
+                        isSelected
+                          ? 'border-blue-500 ring-4 ring-blue-100'
+                          : 'border-gray-200 hover:border-gray-300'
+                      )}
+                    >
+                      <div className="aspect-square bg-gray-50 flex items-center justify-center">
+                        {file.mimeType.startsWith('image/') ? (
+                          <img
+                            src={file.url}
+                            alt={file.alt || file.originalName}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <FileIcon className="w-8 h-8 text-gray-400" />
+                        )}
+                      </div>
+                      
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all" />
+                      
+                      {isSelected && (
+                        <div className="absolute top-2 right-2 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center">
+                          <Check className="w-4 h-4" />
+                        </div>
+                      )}
+                      
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-3">
+                        <p className="text-white text-xs font-medium truncate">
+                          {file.originalName}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredFiles.map(file => {
+                  const isSelected = selectedFiles.some(f => f.id === file.id)
+                  const FileIcon = getFileIcon(file.mimeType)
+                  
+                  return (
+                    <div
+                      key={file.id}
+                      onClick={() => handleFileSelect(file)}
+                      className={cn(
+                        'flex items-center gap-4 p-4 rounded-lg border cursor-pointer transition-all',
+                        isSelected
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      )}
+                    >
+                      <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        {file.mimeType.startsWith('image/') ? (
+                          <img
+                            src={file.url}
+                            alt={file.alt || file.originalName}
+                            className="w-full h-full object-cover rounded-lg"
+                          />
+                        ) : (
+                          <FileIcon className="w-6 h-6 text-gray-400" />
+                        )}
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-gray-900 truncate">
+                          {file.originalName}
+                        </h3>
+                        <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
+                          <span>{formatFileSize(file.size)}</span>
+                          <span>{file.mimeType}</span>
+                          {file.folder && (
+                            <span className="flex items-center gap-1">
+                              <FolderOpen className="w-3 h-3" />
+                              {file.folder}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {isSelected && (
+                        <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0">
+                          <Check className="w-4 h-4" />
                         </div>
                       )}
                     </div>
-                    
-                    <div className="p-2 border-t border-gray-100">
-                      <p className="text-xs font-medium text-gray-900 truncate">
-                        {file.originalName}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {formatFileSize(file.size)}
-                      </p>
-                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
 
-                    {/* Selection Indicator */}
-                    {isSelected && (
-                      <div className="absolute top-2 right-2 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center">
-                        <Check className="w-4 h-4" />
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {filteredFiles.map((file) => {
-                const Icon = getFileIcon(file.mimeType)
-                const isSelected = selectedFiles.includes(file.id)
-                
-                return (
-                  <div
-                    key={file.id}
-                    onClick={() => handleFileSelect(file.id)}
-                    className={cn(
-                      'flex items-center gap-4 p-3 rounded-lg cursor-pointer transition-colors',
-                      isSelected
-                        ? 'bg-blue-50 border border-blue-200'
-                        : 'hover:bg-gray-50 border border-transparent'
-                    )}
-                  >
-                    <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      {file.mimeType.startsWith('image/') ? (
-                        <img
-                          src={file.url}
-                          alt={file.alt || file.originalName}
-                          className="w-full h-full object-cover rounded-lg"
-                        />
-                      ) : (
-                        <Icon className="w-6 h-6 text-gray-400" />
-                      )}
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 truncate">
-                        {file.originalName}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {formatFileSize(file.size)} • {new Date(file.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-
-                    {isSelected && (
-                      <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center flex-shrink-0">
-                        <Check className="w-4 h-4" />
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {filteredFiles.length === 0 && (
-            <div className="text-center py-12">
-              <ImageIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Aucun fichier trouvé
-              </h3>
-              <p className="text-gray-500 mb-4">
-                {searchQuery || filterType !== 'all'
-                  ? 'Essayez de modifier vos critères de recherche'
-                  : 'Commencez par uploader vos premiers fichiers'
-                }
-              </p>
-              <button
-                onClick={() => setShowUploadModal(true)}
-                className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Upload className="w-4 h-4" />
-                Uploader des fichiers
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="bg-gray-50 border-t border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              {selectedFiles.length > 0 
-                ? `${selectedFiles.length} fichier${selectedFiles.length > 1 ? 's' : ''} sélectionné${selectedFiles.length > 1 ? 's' : ''}`
-                : 'Aucune sélection'
-              }
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleConfirmSelection}
-                disabled={selectedFiles.length === 0}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Sélectionner ({selectedFiles.length})
-              </button>
+          {/* Footer */}
+          <div className="border-t border-gray-200 p-6 bg-gray-50">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                {selectedFiles.length > 0 ? (
+                  `${selectedFiles.length} fichier(s) sélectionné(s)`
+                ) : (
+                  `${filteredFiles.length} fichier(s) disponible(s)`
+                )}
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleConfirmSelection}
+                  disabled={selectedFiles.length === 0}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Sélectionner {selectedFiles.length > 0 && `(${selectedFiles.length})`}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* Upload Modal */}
-        <AnimatePresence>
-          {showUploadModal && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
-              onClick={() => setShowUploadModal(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="bg-white rounded-xl shadow-xl max-w-md w-full p-6"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Uploader des fichiers
-                </h3>
-                
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                  <Upload className={cn(
-                    'mx-auto h-12 w-12 mb-4',
-                    isUploading ? 'animate-bounce text-blue-500' : 'text-gray-400'
-                  )} />
-                  
-                  <p className="text-sm text-gray-600 mb-4">
-                    {isUploading 
-                      ? 'Upload en cours...' 
-                      : 'Glissez vos fichiers ici ou cliquez pour parcourir'
-                    }
-                  </p>
-                  
-                  <input
-                    type="file"
-                    id="upload-files"
-                    multiple
-                    accept="image/*,video/*"
-                    onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-                    className="hidden"
-                    disabled={isUploading}
-                  />
-                  <label
-                    htmlFor="upload-files"
-                    className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-50"
-                  >
-                    Parcourir
-                  </label>
-                </div>
-                
-                <div className="flex justify-end gap-3 mt-6">
-                  <button
-                    onClick={() => setShowUploadModal(false)}
-                    disabled={isUploading}
-                    className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    Fermer
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        </motion.div>
       </motion.div>
-    </motion.div>
+    </AnimatePresence>
   )
 }
 

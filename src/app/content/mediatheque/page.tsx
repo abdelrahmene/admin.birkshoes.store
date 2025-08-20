@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search,
-  Filter,
   Grid,
   List,
   Upload,
@@ -13,17 +12,10 @@ import {
   ImageIcon,
   Video,
   File,
-  Folder,
-  Calendar,
   Eye,
   Trash2,
-  Download,
-  Tag,
   MoreVertical,
-  Plus,
-  Edit3,
-  FolderPlus,
-  Settings
+  Loader2
 } from 'lucide-react'
 import { cn } from '../../../utils/cn'
 import { toast } from 'react-hot-toast'
@@ -39,7 +31,7 @@ interface MediaFile {
   tags?: string[]
   createdAt: string
   folder: string
-  usageCount: number
+  usageCount?: number
 }
 
 const MediaLibraryPage: React.FC = () => {
@@ -51,9 +43,9 @@ const MediaLibraryPage: React.FC = () => {
   const [selectedFiles, setSelectedFiles] = useState<string[]>([])
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
-  const [showFileDetails, setShowFileDetails] = useState<string | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({})
 
-  // Load media files
+  // Charger les fichiers média
   const loadMediaFiles = async () => {
     setLoading(true)
     try {
@@ -61,6 +53,8 @@ const MediaLibraryPage: React.FC = () => {
       if (response.ok) {
         const data = await response.json()
         setMediaFiles(data.files || [])
+      } else {
+        throw new Error('Erreur de chargement')
       }
     } catch (error) {
       console.error('Error loading media files:', error)
@@ -74,11 +68,9 @@ const MediaLibraryPage: React.FC = () => {
     loadMediaFiles()
   }, [])
 
-  // Filter files based on search and type
+  // Filtrer les fichiers
   const filteredFiles = mediaFiles.filter(file => {
-    const matchesSearch = file.originalName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         file.filename.toLowerCase().includes(searchQuery.toLowerCase())
-    
+    const matchesSearch = file.originalName.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesType = filterType === 'all' || 
                        (filterType === 'images' && file.mimeType.startsWith('image/')) ||
                        (filterType === 'videos' && file.mimeType.startsWith('video/')) ||
@@ -96,47 +88,73 @@ const MediaLibraryPage: React.FC = () => {
   }
 
   const handleSelectAll = () => {
-    if (selectedFiles.length === filteredFiles.length) {
-      setSelectedFiles([])
-    } else {
-      setSelectedFiles(filteredFiles.map(file => file.id))
-    }
+    setSelectedFiles(
+      selectedFiles.length === filteredFiles.length 
+        ? [] 
+        : filteredFiles.map(file => file.id)
+    )
   }
 
+  // Upload amélioré avec gestion des erreurs
   const handleFileUpload = async (files: FileList) => {
     if (!files.length) return
 
     setIsUploading(true)
-    try {
-      const uploadPromises = Array.from(files).map(async (file) => {
+    const uploadPromises = Array.from(files).map(async (file, index) => {
+      try {
         const formData = new FormData()
         formData.append('file', file)
         formData.append('folder', 'content')
 
-        const response = await fetch('/api/upload/single', {
+        const response = await fetch('/api/upload', {
           method: 'POST',
           body: formData
         })
 
         if (!response.ok) {
-          throw new Error(`Upload failed for ${file.name}`)
+          const errorData = await response.json()
+          throw new Error(errorData.error || `Upload failed for ${file.name}`)
         }
 
-        return response.json()
-      })
+        const result = await response.json()
+        return { success: true, file: result.file, name: file.name }
+      } catch (error) {
+        console.error(`Upload error for ${file.name}:`, error)
+        return { 
+          success: false, 
+          error: error instanceof Error ? error.message : 'Erreur inconnue', 
+          name: file.name 
+        }
+      }
+    })
 
-      await Promise.all(uploadPromises)
-      await loadMediaFiles() // Refresh media list
+    try {
+      const results = await Promise.all(uploadPromises)
+      const successful = results.filter(r => r.success)
+      const failed = results.filter(r => !r.success)
+
+      if (successful.length > 0) {
+        await loadMediaFiles()
+        toast.success(`${successful.length} fichier(s) uploadé(s) avec succès`)
+      }
+
+      if (failed.length > 0) {
+        failed.forEach(failure => {
+          toast.error(`Erreur pour ${failure.name}: ${failure.error}`)
+        })
+      }
+
       setShowUploadModal(false)
-      toast.success(`${files.length} fichier(s) uploadé(s) avec succès`)
     } catch (error) {
       console.error('Upload error:', error)
-      toast.error("Erreur lors de l'upload des fichiers")
+      toast.error("Erreur lors de l'upload")
     } finally {
       setIsUploading(false)
+      setUploadProgress({})
     }
   }
 
+  // Suppression multiple optimisée
   const handleDeleteSelected = async () => {
     if (selectedFiles.length === 0) return
     
@@ -145,15 +163,18 @@ const MediaLibraryPage: React.FC = () => {
     }
 
     try {
-      for (const fileId of selectedFiles) {
+      const deletePromises = selectedFiles.map(async fileId => {
         const response = await fetch(`/api/upload/${fileId}`, {
           method: 'DELETE'
         })
         if (!response.ok) {
-          throw new Error('Delete failed')
+          const file = mediaFiles.find(f => f.id === fileId)
+          throw new Error(`Erreur suppression: ${file?.originalName}`)
         }
-      }
+        return fileId
+      })
       
+      await Promise.all(deletePromises)
       await loadMediaFiles()
       setSelectedFiles([])
       toast.success(`${selectedFiles.length} fichier(s) supprimé(s)`)
@@ -177,6 +198,81 @@ const MediaLibraryPage: React.FC = () => {
     return File
   }
 
+  // Composant Upload Modal optimisé
+  const UploadModal = () => (
+    <AnimatePresence>
+      {showUploadModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+          onClick={() => !isUploading && setShowUploadModal(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="bg-white rounded-xl shadow-xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Uploader des fichiers
+              </h3>
+              {!isUploading && (
+                <button
+                  onClick={() => setShowUploadModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+            
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
+              {isUploading ? (
+                <Loader2 className="mx-auto h-12 w-12 mb-4 animate-spin text-blue-500" />
+              ) : (
+                <Upload className="mx-auto h-12 w-12 mb-4 text-gray-400" />
+              )}
+              
+              <p className="text-sm text-gray-600 mb-4">
+                {isUploading 
+                  ? 'Upload en cours...' 
+                  : 'Glissez vos fichiers ici ou cliquez pour parcourir'
+                }
+              </p>
+              
+              {!isUploading && (
+                <>
+                  <input
+                    type="file"
+                    id="upload-files"
+                    multiple
+                    accept="image/*,video/*,.pdf"
+                    onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="upload-files"
+                    className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
+                  >
+                    Parcourir les fichiers
+                  </label>
+                </>
+              )}
+            </div>
+            
+            <p className="text-xs text-gray-500 mt-3 text-center">
+              Formats supportés: JPG, PNG, GIF, WebP, MP4, PDF (max 10MB)
+            </p>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+
   return (
     <div className="p-6">
       {/* Header */}
@@ -189,15 +285,13 @@ const MediaLibraryPage: React.FC = () => {
             </p>
           </div>
           
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Upload className="w-4 h-4" />
-              Uploader des fichiers
-            </button>
-          </div>
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Upload className="w-4 h-4" />
+            Uploader des fichiers
+          </button>
         </div>
       </div>
 
@@ -299,7 +393,7 @@ const MediaLibraryPage: React.FC = () => {
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <Loader2 className="animate-spin h-8 w-8 text-blue-600 mx-auto mb-4" />
               <p className="text-gray-500">Chargement des fichiers...</p>
             </div>
           </div>
@@ -349,6 +443,7 @@ const MediaLibraryPage: React.FC = () => {
                           src={file.url}
                           alt={file.alt || file.originalName}
                           className="w-full h-full object-cover rounded"
+                          loading="lazy"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded">
@@ -365,7 +460,7 @@ const MediaLibraryPage: React.FC = () => {
                         <p className="text-xs text-gray-500">
                           {formatFileSize(file.size)}
                         </p>
-                        {file.usageCount > 0 && (
+                        {(file.usageCount || 0) > 0 && (
                           <span className="text-xs bg-green-100 text-green-600 px-1 rounded">
                             {file.usageCount}
                           </span>
@@ -379,17 +474,6 @@ const MediaLibraryPage: React.FC = () => {
                         <Check className="w-3 h-3" />
                       </div>
                     )}
-
-                    {/* Actions */}
-                    <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => setShowFileDetails(file.id)}
-                        className="w-5 h-5 bg-black bg-opacity-50 text-white rounded-full flex items-center justify-center hover:bg-opacity-70"
-                        title="Voir les détails"
-                      >
-                        <Eye className="w-3 h-3" />
-                      </button>
-                    </div>
                   </div>
                 )
               })}
@@ -417,6 +501,7 @@ const MediaLibraryPage: React.FC = () => {
                           src={file.url}
                           alt={file.alt || file.originalName}
                           className="w-full h-full object-cover rounded-lg"
+                          loading="lazy"
                         />
                       ) : (
                         <Icon className="w-6 h-6 text-gray-400" />
@@ -435,21 +520,11 @@ const MediaLibraryPage: React.FC = () => {
                         </div>
                         
                         <div className="flex items-center gap-2 ml-4">
-                          {file.usageCount > 0 && (
+                          {(file.usageCount || 0) > 0 && (
                             <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded-full">
                               Utilisé {file.usageCount} fois
                             </span>
                           )}
-                          
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setShowFileDetails(file.id)
-                            }}
-                            className="p-1 text-gray-400 hover:text-gray-600 rounded"
-                          >
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
                         </div>
                       </div>
                     </div>
@@ -467,75 +542,7 @@ const MediaLibraryPage: React.FC = () => {
         )}
       </div>
 
-      {/* Upload Modal */}
-      <AnimatePresence>
-        {showUploadModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-            onClick={() => setShowUploadModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-xl shadow-xl max-w-md w-full p-6"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Uploader des fichiers
-                </h3>
-                <button
-                  onClick={() => setShowUploadModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
-                <Upload className={cn(
-                  'mx-auto h-12 w-12 mb-4',
-                  isUploading ? 'animate-bounce text-blue-500' : 'text-gray-400'
-                )} />
-                
-                <p className="text-sm text-gray-600 mb-4">
-                  {isUploading 
-                    ? 'Upload en cours...' 
-                    : 'Glissez vos fichiers ici ou cliquez pour parcourir'
-                  }
-                </p>
-                
-                <input
-                  type="file"
-                  id="upload-files"
-                  multiple
-                  accept="image/*,video/*,.pdf"
-                  onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-                  className="hidden"
-                  disabled={isUploading}
-                />
-                <label
-                  htmlFor="upload-files"
-                  className={cn(
-                    'inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer',
-                    isUploading && 'opacity-50 cursor-not-allowed'
-                  )}
-                >
-                  Parcourir les fichiers
-                </label>
-              </div>
-              
-              <p className="text-xs text-gray-500 mt-3 text-center">
-                Formats supportés: JPG, PNG, GIF, WebP, MP4, PDF (max 5MB)
-              </p>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <UploadModal />
     </div>
   )
 }
