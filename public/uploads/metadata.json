@@ -53,5 +53,27 @@
     "folder": "content",
     "alt": "IMG_4489.JPG",
     "createdAt": "2025-08-20T19:40:46.553Z"
+  },
+  {
+    "id": "72b28fc4-a2d4-45b2-9741-3f583479503a",
+    "filename": "7dfe5ef2-2479-4250-ba3e-51a6e2276922.jpg",
+    "originalName": "IMG_4491.JPG",
+    "mimeType": "image/jpeg",
+    "size": 9662068,
+    "url": "/uploads/content/7dfe5ef2-2479-4250-ba3e-51a6e2276922.jpg",
+    "folder": "content",
+    "alt": "IMG_4491.JPG",
+    "createdAt": "2025-08-21T00:30:51.198Z"
+  },
+  {
+    "id": "f250e9cb-b023-4e65-9614-a4219a36a4d4",
+    "filename": "7e6490b3-a789-4432-add6-f01c44156f91.jpg",
+    "originalName": "IMG_4493.JPG",
+    "mimeType": "image/jpeg",
+    "size": 8170576,
+    "url": "/uploads/content/7e6490b3-a789-4432-add6-f01c44156f91.jpg",
+    "folder": "content",
+    "alt": "IMG_4493.JPG",
+    "createdAt": "2025-08-21T01:07:12.904Z"
   }
 ]

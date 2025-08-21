@@ -42,9 +42,9 @@ const SectionHeroEditor: React.FC<SectionHeroEditorProps> = ({
   useEffect(() => {
     if (!content.sliderConfig || !content.slides || !content.loyaltyCard) {
       onChange({
+        ...content,
         type: 'hero',
         mode: 'slider',
-        ...content,
         sliderConfig: content.sliderConfig || DEFAULT_SLIDER_CONFIG,
         loyaltyCard: content.loyaltyCard || DEFAULT_LOYALTY_CARD,
         slides: content.slides || []

@@ -164,7 +164,7 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string, onNavigate
           const hasSubItems = item.subItems && item.subItems.length > 0
           const isExpanded = expandedItems.includes(item.name)
           const isMainActive = pathname === item.href
-          const isSubActive = hasSubItems && item.subItems.some(subItem => pathname === subItem.href)
+          const isSubActive = hasSubItems && item.subItems?.some(subItem => pathname === subItem.href)
           const isActive = isMainActive || (item.href !== '/' && pathname.startsWith(item.href))
           
           return (
@@ -233,7 +233,7 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string, onNavigate
                   transition={{ duration: 0.2 }}
                   className="ml-6 space-y-1 border-l border-gray-200 pl-4"
                 >
-                  {item.subItems.map((subItem) => {
+                  {item.subItems?.map((subItem) => {
                     const isSubItemActive = pathname === subItem.href
                     
                     return (

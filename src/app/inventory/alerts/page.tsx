@@ -71,10 +71,14 @@ export default function InventoryAlertsPage() {
   const fetchAlerts = async () => {
     setLoading(true)
     try {
-      const products = await apiClient.get('/products?include=variants,category')
+      const response = await apiClient.get('/products?include=variants,category') as any
+      const products = Array.isArray(response) ? response : response?.data || []
+      
+      // Typer explicitement products comme array
+      const productsArray = products as any[]
       
       // Filtrer et traiter les produits avec alertes
-      const alertProducts: AlertProduct[] = products
+      const alertProducts: AlertProduct[] = productsArray
         .map((product: any) => {
           const totalVariantStock = product.variants?.reduce((sum: number, variant: any) => sum + (variant.stock || 0), 0) || 0
           const effectiveStock = product.variants?.length > 0 ? totalVariantStock : (product.stock || 0)
@@ -110,7 +114,7 @@ export default function InventoryAlertsPage() {
             alertLevel
           }
         })
-        .filter(Boolean) // Supprimer les produits sans alerte
+        .filter((product): product is AlertProduct => product !== null) // Filtrer les null avec type guard
       
       // Calculer les statistiques
       const outOfStock = alertProducts.filter(p => p.status === 'out_of_stock').length

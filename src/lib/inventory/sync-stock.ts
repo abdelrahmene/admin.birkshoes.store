@@ -22,6 +22,22 @@ export interface StockSyncResult {
   }>
 }
 
+interface Product {
+  id: string
+  name: string
+  stock: number
+  variants?: Array<{
+    id: string
+    stock: number
+  }>
+}
+
+interface ApiResponse {
+  data?: {
+    data?: Product[]
+  } | Product[] | Product
+}
+
 /**
  * 🎯 SYNCHRONISER TOUS LES STOCKS SELON LA RÈGLE UNIFIÉE
  * 
@@ -42,8 +58,8 @@ export async function syncAllProductStocks(): Promise<StockSyncResult> {
     console.log('🔄 Début de la synchronisation des stocks...')
 
     // Récupérer tous les produits avec leurs variantes via l'API
-    const response = await apiClient.get('/products?include=variants')
-    const products = response.data.data || response.data
+    const response = await apiClient.get('/products?include=variants') as ApiResponse
+    const products = (response?.data as any)?.data || (response?.data as Product[]) || []
 
     result.total = products.length
     console.log(`📦 ${products.length} produits à analyser`)
@@ -143,8 +159,8 @@ export async function analyzeStockInconsistencies(): Promise<{
   }
 }> {
   try {
-    const response = await apiClient.get('/products?include=variants')
-    const products = response.data.data || response.data
+    const response = await apiClient.get('/products?include=variants') as ApiResponse
+    const products = (response?.data as any)?.data || (response?.data as Product[]) || []
 
     const inconsistentProducts = []
     let withVariants = 0
@@ -198,8 +214,8 @@ export async function syncSingleProduct(productId: string): Promise<{
   newStock: number
 }> {
   try {
-    const response = await apiClient.get(`/products/${productId}?include=variants`)
-    const product = response.data.data || response.data
+    const response = await apiClient.get(`/products/${productId}?include=variants`) as ApiResponse
+    const product = (response?.data as any)?.data || (response?.data as Product)
 
     if (!product) {
       return {

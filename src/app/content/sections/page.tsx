@@ -16,22 +16,39 @@ import {
   Tablet,
   Plus,
   Trash2,
-  Copy,
-  Move,
-  MoreVertical,
-  AlertCircle,
-  Check,
-  X
+  AlertCircle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
-import toast from 'react-hot-toast'
+import { toast } from 'react-hot-toast'
+
+interface SectionContent {
+  title?: string
+  subtitle?: string
+  backgroundImage?: string
+  buttonText?: string
+  buttonLink?: string
+  categories?: Array<{
+    name: string
+    link: string
+  }>
+  collectionId?: string
+  sectionTitle?: string
+  description?: string
+  productsCount?: number
+  backgroundColor?: string
+  textColor?: string
+  paddingY?: string
+  paddingX?: string
+  enableAnimation?: boolean
+  animationType?: string
+}
 
 interface SectionEditor {
   id: string
   title: string
   type: string
-  content: any
+  content: SectionContent
   isVisible: boolean
   order: number
 }
@@ -43,8 +60,13 @@ const SectionEditorPage = () => {
   const [activeEditor, setActiveEditor] = useState('content')
   const [unsavedChanges, setUnsavedChanges] = useState(false)
 
-  // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    title: string
+    description: string
+    type: string
+    content: SectionContent
+    isVisible: boolean
+  }>({
     title: '',
     description: '',
     type: 'hero',
@@ -64,7 +86,6 @@ const SectionEditorPage = () => {
     { id: 'settings', label: 'Paramètres', icon: Settings }
   ]
 
-  // Save section
   const saveSection = async () => {
     try {
       setIsLoading(true)
@@ -89,7 +110,6 @@ const SectionEditorPage = () => {
         toast.success(section?.id ? 'Section mise à jour' : 'Section créée')
         setUnsavedChanges(false)
         if (!section?.id) {
-          // Redirect to edit mode for new sections
           window.location.href = `/content/sections?id=${data.data.id}`
         }
       } else {
@@ -103,13 +123,11 @@ const SectionEditorPage = () => {
     }
   }
 
-  // Handle form changes
   const updateFormData = (key: string, value: any) => {
     setFormData(prev => ({ ...prev, [key]: value }))
     setUnsavedChanges(true)
   }
 
-  // Content Editor Components
   const HeroEditor = () => (
     <div className="space-y-6">
       <div>
@@ -123,7 +141,7 @@ const SectionEditorPage = () => {
             ...formData.content,
             title: e.target.value
           })}
-          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           placeholder="Votre titre accrocheur"
         />
       </div>
@@ -139,7 +157,7 @@ const SectionEditorPage = () => {
             subtitle: e.target.value
           })}
           rows={3}
-          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           placeholder="Description ou sous-titre"
         />
       </div>
@@ -160,7 +178,7 @@ const SectionEditorPage = () => {
                 ...formData.content,
                 backgroundImage: e.target.value
               })}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="URL de l'image ou sélectionner"
             />
           </div>
@@ -182,7 +200,7 @@ const SectionEditorPage = () => {
               ...formData.content,
               buttonText: e.target.value
             })}
-            className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="Texte du bouton"
           />
           <input
@@ -192,7 +210,7 @@ const SectionEditorPage = () => {
               ...formData.content,
               buttonLink: e.target.value
             })}
-            className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="Lien du bouton"
           />
         </div>
@@ -204,7 +222,7 @@ const SectionEditorPage = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium text-gray-900">Catégories affichées</h3>
-        <button className="flex items-center px-3 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+        <button className="flex items-center px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
           <Plus className="w-4 h-4 mr-2" />
           Ajouter
         </button>
@@ -228,7 +246,7 @@ const SectionEditorPage = () => {
                     categories: updatedCategories
                   })
                 }}
-                className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Nom de la catégorie"
               />
               <input
@@ -242,7 +260,7 @@ const SectionEditorPage = () => {
                     categories: updatedCategories
                   })
                 }}
-                className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Lien vers la catégorie"
               />
             </div>
@@ -276,7 +294,7 @@ const SectionEditorPage = () => {
             ...formData.content,
             collectionId: e.target.value
           })}
-          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
           <option value="">Sélectionner une collection</option>
           <option value="featured">Collection en vedette</option>
@@ -296,7 +314,7 @@ const SectionEditorPage = () => {
             ...formData.content,
             sectionTitle: e.target.value
           })}
-          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           placeholder="Titre de la section collection"
         />
       </div>
@@ -312,7 +330,7 @@ const SectionEditorPage = () => {
             description: e.target.value
           })}
           rows={3}
-          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           placeholder="Description de la collection"
         />
       </div>
@@ -330,13 +348,12 @@ const SectionEditorPage = () => {
           })}
           min="4"
           max="16"
-          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
       </div>
     </div>
   )
 
-  // Design Editor
   const DesignEditor = () => (
     <div className="space-y-6">
       <div>
@@ -363,7 +380,7 @@ const SectionEditorPage = () => {
                   ...formData.content,
                   backgroundColor: e.target.value
                 })}
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="#ffffff"
               />
             </div>
@@ -390,7 +407,7 @@ const SectionEditorPage = () => {
                   ...formData.content,
                   textColor: e.target.value
                 })}
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="#000000"
               />
             </div>
@@ -411,7 +428,7 @@ const SectionEditorPage = () => {
                 ...formData.content,
                 paddingY: e.target.value
               })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="small">Petit (20px)</option>
               <option value="normal">Normal (40px)</option>
@@ -430,7 +447,7 @@ const SectionEditorPage = () => {
                 ...formData.content,
                 paddingX: e.target.value
               })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="small">Petit (16px)</option>
               <option value="normal">Normal (24px)</option>
@@ -451,7 +468,7 @@ const SectionEditorPage = () => {
                 ...formData.content,
                 enableAnimation: e.target.checked
               })}
-              className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
             />
             <label className="text-sm font-medium text-gray-700">
               Activer les animations
@@ -469,7 +486,7 @@ const SectionEditorPage = () => {
                   ...formData.content,
                   animationType: e.target.value
                 })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="fadeIn">Apparition en fondu</option>
                 <option value="slideUp">Glissement vers le haut</option>
@@ -483,7 +500,6 @@ const SectionEditorPage = () => {
     </div>
   )
 
-  // Settings Editor
   const SettingsEditor = () => (
     <div className="space-y-6">
       <div>
@@ -494,7 +510,7 @@ const SectionEditorPage = () => {
           type="text"
           value={formData.title}
           onChange={(e) => updateFormData('title', e.target.value)}
-          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           placeholder="Nom interne de la section"
         />
       </div>
@@ -507,7 +523,7 @@ const SectionEditorPage = () => {
           value={formData.description}
           onChange={(e) => updateFormData('description', e.target.value)}
           rows={3}
-          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           placeholder="Description pour l'administration"
         />
       </div>
@@ -519,7 +535,7 @@ const SectionEditorPage = () => {
         <select
           value={formData.type}
           onChange={(e) => updateFormData('type', e.target.value)}
-          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
           <option value="hero">Hero Banner</option>
           <option value="categories">Catégories</option>
@@ -534,7 +550,7 @@ const SectionEditorPage = () => {
           type="checkbox"
           checked={formData.isVisible}
           onChange={(e) => updateFormData('isVisible', e.target.checked)}
-          className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
         />
         <label className="text-sm font-medium text-gray-700">
           Section visible sur le site
@@ -557,7 +573,6 @@ const SectionEditorPage = () => {
     </div>
   )
 
-  // Render content editor based on type
   const renderContentEditor = () => {
     switch (formData.type) {
       case 'hero':
@@ -579,7 +594,6 @@ const SectionEditorPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -606,7 +620,6 @@ const SectionEditorPage = () => {
           </div>
 
           <div className="flex items-center space-x-3">
-            {/* Preview Mode Selector */}
             <div className="flex items-center space-x-1 p-1 bg-gray-100 rounded-lg">
               {previewModes.map((mode) => (
                 <button
@@ -615,7 +628,7 @@ const SectionEditorPage = () => {
                   className={cn(
                     "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors",
                     previewMode === mode.id
-                      ? "bg-white text-primary shadow-sm"
+                      ? "bg-white text-blue-600 shadow-sm"
                       : "text-gray-600 hover:text-gray-900"
                   )}
                 >
@@ -633,7 +646,7 @@ const SectionEditorPage = () => {
             <button 
               onClick={saveSection}
               disabled={isLoading}
-              className="flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
               {isLoading ? (
                 <>
@@ -652,9 +665,7 @@ const SectionEditorPage = () => {
       </div>
 
       <div className="flex h-[calc(100vh-80px)]">
-        {/* Editor Panel */}
         <div className="w-1/2 bg-white border-r border-gray-200 overflow-y-auto">
-          {/* Editor Tabs */}
           <div className="border-b border-gray-200 px-6 py-4">
             <nav className="flex space-x-8">
               {editorTabs.map((tab) => (
@@ -664,7 +675,7 @@ const SectionEditorPage = () => {
                   className={cn(
                     "flex items-center py-2 px-1 border-b-2 font-medium text-sm transition-colors",
                     activeEditor === tab.id
-                      ? "border-primary text-primary"
+                      ? "border-blue-500 text-blue-600"
                       : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                   )}
                 >
@@ -675,7 +686,6 @@ const SectionEditorPage = () => {
             </nav>
           </div>
 
-          {/* Editor Content */}
           <div className="p-6">
             <motion.div
               key={activeEditor}
@@ -690,11 +700,9 @@ const SectionEditorPage = () => {
           </div>
         </div>
 
-        {/* Preview Panel */}
         <div className="w-1/2 bg-gray-100 overflow-y-auto">
           <div className="p-6">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-              {/* Preview Header */}
               <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <h3 className="font-medium text-gray-900">Aperçu - {previewMode}</h3>
@@ -706,7 +714,6 @@ const SectionEditorPage = () => {
                 </div>
               </div>
 
-              {/* Preview Content */}
               <div className={cn(
                 "transition-all duration-300",
                 previewMode === 'mobile' && "max-w-sm mx-auto",

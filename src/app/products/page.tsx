@@ -67,8 +67,8 @@ export default function ProductsPage() {
       // 🎯 CALCULER LE STOCK TOTAL POUR CHAQUE PRODUIT
       const productsWithCalculatedStock = productsData.map(product => {
         const hasVariants = product.variants && product.variants.length > 0
-        const totalStock = hasVariants 
-          ? product.variants.reduce((sum, variant) => sum + (variant.stock || 0), 0)
+        const totalStock = hasVariants
+        ? product.variants?.reduce((sum, variant) => sum + (variant.stock || 0), 0) || 0
           : product.stock
         
         return {

@@ -90,7 +90,8 @@ export default function StockAdjustmentsPage() {
   const fetchProducts = async () => {
     setLoading(true)
     try {
-      const products = await apiClient.get('/products?include=variants,category')
+      const response = await apiClient.get('/products?include=variants,category') as any
+      const products = Array.isArray(response) ? response : response?.data || []
       
       // Calculer les données d'inventaire côté client
       const processedProducts: Product[] = products.map((product: any) => {

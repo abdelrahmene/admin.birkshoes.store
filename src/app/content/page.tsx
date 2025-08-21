@@ -3,14 +3,11 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import {
-  Settings,
   Eye,
   Plus,
   Image as ImageIcon,
   Home,
   Users,
-  ShirtIcon as Shirt,
-  Baby,
   Sparkles,
   BarChart3,
   Edit,
@@ -20,34 +17,19 @@ import {
   Monitor,
   Smartphone,
   Tablet,
-  ChevronRight,
   Search,
-  Filter,
-  Upload,
-  Save,
   RefreshCw,
-  Check,
-  X,
-  AlertCircle,
-  ExternalLink,
-  ChevronDown,
-  Calendar,
-  Clock,
-  Move,
   EyeOff,
-  MoreVertical,
   Layers,
   Image,
   Type,
   Layout,
-  Palette,
   Video,
-  Link
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'react-hot-toast'
 import { Sidebar } from '@/components/layout/Sidebar'
-import { SectionEditor } from '@/components/content/SectionEditor'
+import SectionEditor from '@/components/content/SectionEditor'
 import { apiClient } from '@/services/api'
 
 // Types
@@ -82,8 +64,6 @@ const ContentManagementPage = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [sections, setSections] = useState<HomeSection[]>([])
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([])
-  const [selectedSection, setSelectedSection] = useState<HomeSection | null>(null)
-  const [isEditing, setIsEditing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState('all')
   const [showSectionModal, setShowSectionModal] = useState(false)
@@ -108,7 +88,6 @@ const ContentManagementPage = () => {
       setIsLoading(true)
       const response = await apiClient.get('/content/home-sections/all')
       
-      // Vérifier si response existe et est un tableau
       if (Array.isArray(response)) {
         setSections(response)
       } else if (response && Array.isArray(response.data)) {
@@ -129,7 +108,6 @@ const ContentManagementPage = () => {
     try {
       const response = await apiClient.get('/media')
       
-      // Vérifier si response et response.files existent
       if (response && response.files) {
         setMediaFiles(response.files)
       } else if (Array.isArray(response)) {
@@ -165,13 +143,11 @@ const ContentManagementPage = () => {
     
     try {
       const sectionIds = reorderedSections.map(section => section.id)
-      
       await apiClient.patch('/content/home-sections/reorder', { sectionIds })
       toast.success('Ordre des sections mis à jour')
     } catch (error) {
       console.error('Erreur lors de la réorganisation:', error)
       toast.error('Erreur lors de la réorganisation des sections')
-      // Revert on error
       fetchSections()
     }
   }
@@ -287,9 +263,7 @@ const ContentManagementPage = () => {
   ]
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar />
-      
+    <Sidebar>
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <header className="bg-white border-b border-gray-200 px-6 py-4">
@@ -542,70 +516,70 @@ const ContentManagementPage = () => {
             )}
           </div>
         </div>
-      </div>
 
-      {/* Section Type Modal */}
-      <AnimatePresence>
-        {showSectionModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-            onClick={() => setShowSectionModal(false)}
-          >
+        {/* Section Type Modal */}
+        <AnimatePresence>
+          {showSectionModal && (
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-auto"
-              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+              onClick={() => setShowSectionModal(false)}
             >
-              <div className="p-6 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900">Choisir un type de section</h2>
-                <p className="text-gray-600 mt-1">Sélectionnez le type de section que vous souhaitez ajouter</p>
-              </div>
-              
-              <div className="p-6">
-                <div className="grid grid-cols-2 gap-4">
-                  {sectionTypes.map((type) => {
-                    const Icon = type.icon
-                    return (
-                      <button
-                        key={type.id}
-                        onClick={() => createSection(type.id)}
-                        className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-all text-left"
-                      >
-                        <div className={cn('w-12 h-12 rounded-lg flex items-center justify-center', type.color)}>
-                          <Icon className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                          <h3 className="font-medium text-gray-900">{type.label}</h3>
-                          <p className="text-sm text-gray-600">Section {type.label.toLowerCase()}</p>
-                        </div>
-                      </button>
-                    )
-                  })}
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-6 border-b border-gray-200">
+                  <h2 className="text-xl font-semibold text-gray-900">Choisir un type de section</h2>
+                  <p className="text-gray-600 mt-1">Sélectionnez le type de section que vous souhaitez ajouter</p>
                 </div>
-              </div>
+                
+                <div className="p-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    {sectionTypes.map((type) => {
+                      const Icon = type.icon
+                      return (
+                        <button
+                          key={type.id}
+                          onClick={() => createSection(type.id)}
+                          className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-all text-left"
+                        >
+                          <div className={cn('w-12 h-12 rounded-lg flex items-center justify-center', type.color)}>
+                            <Icon className="w-6 h-6 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="font-medium text-gray-900">{type.label}</h3>
+                            <p className="text-sm text-gray-600">Section {type.label.toLowerCase()}</p>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
 
-      {/* Section Editor Modal */}
-      {showSectionEditor && editingSection && (
-        <SectionEditor
-          section={editingSection}
-          onSave={saveSection}
-          onCancel={() => {
-            setShowSectionEditor(false)
-            setEditingSection(null)
-          }}
-          mediaFiles={mediaFiles}
-        />
-      )}
-    </div>
+        {/* Section Editor Modal */}
+        {showSectionEditor && editingSection && (
+          <SectionEditor
+            section={editingSection}
+            isOpen={showSectionEditor}
+            onClose={() => {
+              setShowSectionEditor(false)
+              setEditingSection(null)
+            }}
+            onSave={saveSection}
+          />
+        )}
+      </div>
+    </Sidebar>
   )
 }
 

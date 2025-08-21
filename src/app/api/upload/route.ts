@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { writeFile, mkdir, readFile } from 'fs/promises'
 import { existsSync } from 'fs'
 import path from 'path'
-import { v4 as uuidv4 } from 'uuid'
 
 // Configuration des dossiers d'upload
 const UPLOAD_FOLDERS = {
@@ -46,7 +45,7 @@ async function saveMediaMetadata(mediaFile: any) {
 }
 
 // Fonction pour lire les métadonnées
-export async function getMediaFiles() {
+async function getMediaFiles() {
   const metadataPath = path.join(process.cwd(), 'public', 'uploads', 'metadata.json')
   
   try {
@@ -59,6 +58,18 @@ export async function getMediaFiles() {
   }
   
   return []
+}
+
+export async function GET() {
+  try {
+    const files = await getMediaFiles()
+    return NextResponse.json({ files })
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Erreur lors de la récupération des fichiers' },
+      { status: 500 }
+    )
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -95,7 +106,7 @@ export async function POST(request: NextRequest) {
 
     // Générer un nom de fichier unique
     const fileExtension = ALLOWED_TYPES[file.type as keyof typeof ALLOWED_TYPES]
-    const fileName = `${uuidv4()}.${fileExtension}`
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExtension}`
     
     // Créer le chemin de destination
     const uploadDir = path.join(process.cwd(), 'public', 'uploads', uploadFolder)
@@ -116,7 +127,7 @@ export async function POST(request: NextRequest) {
 
     // Créer l'objet media file
     const mediaFile = {
-      id: uuidv4(),
+      id: `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
       filename: fileName,
       originalName: file.name,
       mimeType: file.type,

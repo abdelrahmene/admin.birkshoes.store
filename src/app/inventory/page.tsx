@@ -34,8 +34,8 @@ interface InventoryProduct {
   stock: number
   lowStock: number
   trackStock: boolean
-  price: float
-  cost: float | null
+  price: number
+  cost: number | null
   category: string | null
   collection: string | null
   variants: {
@@ -45,8 +45,10 @@ interface InventoryProduct {
     sku: string | null
   }[]
   totalVariantStock: number
+  totalStock: number
   stockValue: number
   status: 'in_stock' | 'low_stock' | 'out_of_stock'
+  hasVariants?: boolean
 }
 
 interface InventoryStats {
@@ -94,8 +96,11 @@ export default function InventoryPage() {
       // Utiliser l'API des produits avec les variantes pour calculer les stocks
       const products = await apiClient.get('/products?include=variants,category')
       
+      // Typer explicitement les produits
+      const productsArray = products as any[]
+      
       // Calculer les statistiques côté client pour l'instant
-      const processedProducts: InventoryProduct[] = products.map((product: any) => {
+      const processedProducts: InventoryProduct[] = productsArray.map((product: any) => {
         const totalVariantStock = product.variants?.reduce((sum: number, variant: any) => sum + (variant.stock || 0), 0) || 0
         const effectiveStock = product.variants?.length > 0 ? totalVariantStock : (product.stock || 0)
         

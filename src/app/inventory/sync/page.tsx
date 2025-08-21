@@ -135,7 +135,7 @@ export default function StockSyncPage() {
               <span>Reanalyser</span>
             </button>
             
-            {analysis?.summary.needsSync > 0 && (
+            {analysis?.summary?.needsSync && analysis.summary.needsSync > 0 && (
               <button
                 onClick={syncAllStocks}
                 disabled={syncing}

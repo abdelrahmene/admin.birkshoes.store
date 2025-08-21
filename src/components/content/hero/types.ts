@@ -28,6 +28,9 @@ export interface LoyaltyCard {
   subtitle: string
   description: string
   position: number
+  reward: string
+  accentColor: string
+  textColor: string
 }
 
 export interface HeroContent {
@@ -117,7 +120,10 @@ export const DEFAULT_LOYALTY_CARD: LoyaltyCard = {
   title: 'Programme Fidélité',
   subtitle: 'Exclusif Birk&Shoes',
   description: '6 achetées = 7ème gratuite!',
-  position: 2
+  position: 2,
+  reward: 'Paire gratuite',
+  accentColor: 'from-yellow-400 to-orange-500',
+  textColor: 'text-white'
 }
 
 export const DEFAULT_HERO_SLIDE: Omit<HeroSlide, 'id'> = {

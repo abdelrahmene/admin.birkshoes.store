@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff, Mail, Lock, LogIn } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
@@ -54,8 +55,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
     if (!validateForm()) return
 
     const success = await login(formData)
-    if (success && onSuccess) {
-      onSuccess()
+    if (success) {
+      // Rediriger vers le dashboard après connexion réussie
+      if (onSuccess) {
+        onSuccess()
+      }
+      // Force refresh pour déclencher AuthGuard
+      window.location.reload()
     }
   }
 

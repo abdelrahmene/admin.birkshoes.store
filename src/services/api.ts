@@ -93,9 +93,9 @@ class ApiClient {
         if (response.status === 401) {
           console.log('🚫 Token invalide ou expiré, déconnexion...')
           this.setToken(null)
-          // Rediriger vers la page de login si on n'y est pas déjà
-          if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-            window.location.href = '/login'
+          // Recharger la page pour déclencher AuthGuard
+          if (typeof window !== 'undefined') {
+          window.location.reload()
           }
         }
         
@@ -161,7 +161,7 @@ class ApiClient {
   async logout(): Promise<void> {
     this.setToken(null)
     if (typeof window !== 'undefined') {
-      window.location.href = '/login'
+      window.location.reload()
     }
   }
 
@@ -182,6 +182,32 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient(API_BASE_URL)
+
+// Services for content management
+export const getContent = async (sectionId: string) => {
+  return apiClient.get(`/content/home-section/${sectionId}`)
+}
+
+export const saveContent = async (sectionId: string, data: any) => {
+  return apiClient.put(`/content/home-sections/${sectionId}`, data)
+}
+
+// Collection items services
+export const getCollectionItems = async (sectionId: string) => {
+  return apiClient.get(`/content/home-section/${sectionId}/collections`)
+}
+
+export const saveCollectionItems = async (sectionId: string, items: any[], carouselConfig: any) => {
+  return apiClient.put(`/content/home-section/${sectionId}/collections`, {
+    items,
+    carouselConfig
+  })
+}
+
+// Media services
+export const getMediaFiles = async () => {
+  return apiClient.get('/content/media')
+}
 
 // Export des types pour utilisation dans d'autres composants
 export type { User, AuthResponse, LoginData }

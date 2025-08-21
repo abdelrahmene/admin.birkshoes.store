@@ -196,6 +196,12 @@ export default function StockMovementsPage() {
     }
   }
 
+  const handleMovementSuccess = async () => {
+    setShowNewMovementModal(false)
+    await fetchMovements()
+    toast.success('Mouvement créé avec succès!')
+  }
+
   const createMovement = async (movementData: any) => {
     try {
       // Simuler la création d'un mouvement
@@ -206,8 +212,7 @@ export default function StockMovementsPage() {
         reason: movementData.reason
       })
       
-      toast.success('Mouvement créé avec succès!')
-      fetchMovements()
+      // Le succès sera géré par handleMovementSuccess
     } catch (error: any) {
       console.error('Erreur lors de la création du mouvement:', error)
       toast.error(error.message || 'Erreur lors de la création du mouvement')
@@ -565,8 +570,7 @@ export default function StockMovementsPage() {
       <NewMovementModal
         isOpen={showNewMovementModal}
         onClose={() => setShowNewMovementModal(false)}
-        onSuccess={createMovement}
-        products={products}
+        onSuccess={handleMovementSuccess}
       />
     </Sidebar>
   )

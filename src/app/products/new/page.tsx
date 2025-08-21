@@ -1014,7 +1014,7 @@ function VariantModal({
                   {option}
                 </label>
                 <Input
-                  value={variantData.options[option] || ''}
+                  value={(variantData.options as any)[option] || ''}
                   onChange={(e) => setVariantData(prev => ({
                     ...prev,
                     options: { ...prev.options, [option]: e.target.value }
