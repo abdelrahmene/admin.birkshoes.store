@@ -27,6 +27,11 @@ import { apiClient } from '@/lib/api'
 import { toast } from 'react-hot-toast'
 
 // Types pour les données d'inventaire
+interface ApiResponse {
+  products?: any[]
+  [key: string]: any
+}
+
 interface InventoryProduct {
   id: string
   name: string
@@ -94,10 +99,18 @@ export default function InventoryPage() {
     setLoading(true)
     try {
       // Utiliser l'API des produits avec les variantes pour calculer les stocks
-      const products = await apiClient.get('/products?include=variants,category')
+      const response = await apiClient.get('/products?include=variants,category') as ApiResponse
+      console.log('🔍 API Response structure:', response)
       
-      // Typer explicitement les produits
-      const productsArray = products as any[]
+      // 🔥 FIX: Extraire le tableau de produits de la réponse
+      const productsArray = Array.isArray(response.products) ? response.products : (Array.isArray(response) ? response : [])
+      console.log('🔎 Products array is valid:', Array.isArray(productsArray), 'Length:', productsArray.length)
+      
+      // 🔥 SÉCURITÉ: Vérifier que productsArray est bien un tableau avant .map()
+      if (!Array.isArray(productsArray)) {
+        console.error('❌ productsArray is not an array:', typeof productsArray, productsArray)
+        throw new Error('La réponse de l\'API ne contient pas un tableau de produits valide')
+      }
       
       // Calculer les statistiques côté client pour l'instant
       const processedProducts: InventoryProduct[] = productsArray.map((product: any) => {
