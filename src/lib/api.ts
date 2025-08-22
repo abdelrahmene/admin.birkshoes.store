@@ -31,13 +31,20 @@ export class ApiClient {
     };
 
     try {
+      console.log(`🌐 API Request: ${options.method || 'GET'} ${endpoint}`);
+      if (token) {
+        console.log('🔑 Token présent dans la requête');
+      }
+
       const response = await fetch(url, config);
       
       if (!response.ok) {
         throw new Error(`API Error: ${response.status} ${response.statusText}`);
       }
       
-      return response.json();
+      const data = await response.json();
+      console.log(`✅ API Response: ${endpoint}`, data);
+      return data;
     } catch (error) {
       console.error(`API Request failed: ${endpoint}`, error);
       throw error;

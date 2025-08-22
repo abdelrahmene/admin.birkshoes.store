@@ -61,11 +61,14 @@ export default function ProductsPage() {
 
   const fetchProducts = async () => {
     try {
-      const productsData = await apiClient.get<Product[]>('/products')
-      console.log('🔍 Products fetched:', productsData)
+      const response = await apiClient.get<{ products: Product[], pagination: any }>('/products')
+      console.log('🔍 Products fetched:', response)
+        
+      // 🎯 VÉRIFIER QUE LA RÉPONSE CONTIENT UN TABLEAU DE PRODUITS
+      const productsArray = Array.isArray(response.products) ? response.products : []
         
       // 🎯 CALCULER LE STOCK TOTAL POUR CHAQUE PRODUIT
-      const productsWithCalculatedStock = productsData.map(product => {
+      const productsWithCalculatedStock = productsArray.map(product => {
         const hasVariants = product.variants && product.variants.length > 0
         const totalStock = hasVariants
         ? product.variants?.reduce((sum, variant) => sum + (variant.stock || 0), 0) || 0
