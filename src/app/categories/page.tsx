@@ -60,9 +60,14 @@ export default function CategoriesPage() {
 
   const fetchCategories = async () => {
     try {
-      const data = await apiClient.get<Category[]>('/categories')
-      console.log('🔍 Categories fetched:', data)
-      setCategories(data)
+      const response = await apiClient.get('/categories') as any
+      console.log('🔍 Categories response:', response)
+      
+      // 🔥 FIX: Extraire le tableau de catégories de la réponse
+      const categoriesArray = Array.isArray(response.categories) ? response.categories : (Array.isArray(response) ? response : [])
+      console.log('🔎 Categories array is valid:', Array.isArray(categoriesArray), 'Length:', categoriesArray.length)
+      
+      setCategories(categoriesArray)
     } catch (error) {
       console.error('Error fetching categories:', error)
       toast.error('Erreur lors du chargement des catégories')
@@ -174,7 +179,7 @@ export default function CategoriesPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Aucune (catégorie principale)</SelectItem>
-                        {mainCategories.map((category) => (
+                        {Array.isArray(mainCategories) && mainCategories.map((category) => (
                           <SelectItem key={category.id} value={category.id || "default"}>
                             {category.name}
                           </SelectItem>
@@ -366,7 +371,7 @@ export default function CategoriesPage() {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {/* Main Categories */}
-                    {mainCategories.map((category, index) => (
+                    {Array.isArray(mainCategories) && mainCategories.map((category, index) => (
                       <motion.tr
                         key={category.id}
                         initial={{ opacity: 0, x: -20 }}
@@ -429,7 +434,7 @@ export default function CategoriesPage() {
                     ))}
                     
                     {/* Sub Categories */}
-                    {subCategories.map((category, index) => (
+                    {Array.isArray(subCategories) && subCategories.map((category, index) => (
                       <motion.tr
                         key={category.id}
                         initial={{ opacity: 0, x: -20 }}

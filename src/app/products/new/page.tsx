@@ -81,7 +81,13 @@ export default function NewProductPage() {
       const response = await fetch('/api/categories')
       if (response.ok) {
         const data = await response.json()
-        setCategories(data)
+        console.log('🔍 Categories response:', data)
+        
+        // 🔥 FIX: Extraire le tableau de catégories de la réponse
+        const categoriesArray = Array.isArray(data.categories) ? data.categories : (Array.isArray(data) ? data : [])
+        console.log('🔎 Categories array is valid:', Array.isArray(categoriesArray), 'Length:', categoriesArray.length)
+        
+        setCategories(categoriesArray)
       }
     } catch (error) {
       console.error('Error fetching categories:', error)
@@ -93,7 +99,13 @@ export default function NewProductPage() {
       const response = await fetch('/api/collections')
       if (response.ok) {
         const data = await response.json()
-        setCollections(data)
+        console.log('🔍 Collections response:', data)
+        
+        // 🔥 FIX: Extraire le tableau de collections de la réponse
+        const collectionsArray = Array.isArray(data.collections) ? data.collections : (Array.isArray(data) ? data : [])
+        console.log('🔎 Collections array is valid:', Array.isArray(collectionsArray), 'Length:', collectionsArray.length)
+        
+        setCollections(collectionsArray)
       }
     } catch (error) {
       console.error('Error fetching collections:', error)
@@ -822,7 +834,7 @@ export default function NewProductPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent"
                     >
                       <option value="">Sélectionner une catégorie</option>
-                      {categories.map(category => (
+                      {Array.isArray(categories) && categories.map(category => (
                         <option key={category.id} value={category.id}>
                           {category.name}
                         </option>
@@ -840,7 +852,7 @@ export default function NewProductPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent"
                     >
                       <option value="">Sélectionner une collection</option>
-                      {collections.map(collection => (
+                      {Array.isArray(collections) && collections.map(collection => (
                         <option key={collection.id} value={collection.id}>
                           {collection.name}
                         </option>

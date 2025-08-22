@@ -65,7 +65,13 @@ export function VariantStockManager({
       const response = await fetch(`/api/inventory/variants?productId=${productId}`)
       if (response.ok) {
         const data = await response.json()
-        setVariants(data.variants)
+        console.log('🔍 VariantStockManager - Variants response:', data)
+        
+        // 🔥 FIX: Extraire le tableau de variantes de la réponse
+        const variantsArray = Array.isArray(data.variants) ? data.variants : (Array.isArray(data) ? data : [])
+        console.log('🔎 VariantStockManager - Variants array is valid:', Array.isArray(variantsArray), 'Length:', variantsArray.length)
+        
+        setVariants(variantsArray)
       }
     } catch (error) {
       console.error('Erreur lors du chargement des variantes:', error)
@@ -242,7 +248,7 @@ export function VariantStockManager({
         </div>
 
         <div className="divide-y">
-          {variants.map((variant, index) => (
+          {Array.isArray(variants) && variants.map((variant, index) => (
             <motion.div
               key={variant.id}
               initial={{ opacity: 0, y: 20 }}
@@ -381,7 +387,7 @@ export function VariantStockManager({
                               Mouvements récents:
                             </p>
                             <div className="flex flex-wrap gap-2">
-                              {variant.stockMovements.slice(0, 3).map((movement) => (
+                              {Array.isArray(variant.stockMovements) && variant.stockMovements.slice(0, 3).map((movement) => (
                                 <div
                                   key={movement.id}
                                   className="flex items-center space-x-1 text-xs bg-gray-100 rounded-full px-2 py-1"

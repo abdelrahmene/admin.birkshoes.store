@@ -93,8 +93,14 @@ export default function StockMovementsPage() {
 
   const fetchProducts = async () => {
     try {
-      const data = await apiClient.get<any[]>('/products?include=variants')
-      setProducts(data)
+      const response = await apiClient.get('/products?include=variants') as any
+      console.log('🔍 Products response:', response)
+      
+      // 🔥 FIX: Extraire le tableau de produits de la réponse
+      const productsArray = Array.isArray(response.products) ? response.products : (Array.isArray(response) ? response : [])
+      console.log('🔎 Products array is valid:', Array.isArray(productsArray), 'Length:', productsArray.length)
+      
+      setProducts(productsArray)
     } catch (error) {
       console.error('Erreur lors du chargement des produits:', error)
     }
@@ -105,6 +111,15 @@ export default function StockMovementsPage() {
     try {
       // Simuler des mouvements de stock basés sur les produits réels
       // En attendant qu'une vraie API de mouvements soit implémentée
+      
+      // 🔥 SÉCURITÉ: Vérifier que products est bien un tableau avant .map()
+      if (!Array.isArray(products)) {
+        console.error('❌ products is not an array:', typeof products, products)
+        setMovements([])
+        setPagination(prev => ({ ...prev, totalCount: 0, totalPages: 0 }))
+        return
+      }
+      
       const mockMovements: StockMovement[] = products.slice(0, 5).map((product, index) => ({
         id: `mov_${index + 1}`,
         productId: product.id,
@@ -347,7 +362,7 @@ export default function StockMovementsPage() {
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
                   <option value="">Tous les produits</option>
-                  {products.map((product) => (
+                  {Array.isArray(products) && products.map((product) => (
                     <option key={product.id} value={product.id}>
                       {product.name}
                     </option>

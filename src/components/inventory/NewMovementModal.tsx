@@ -62,7 +62,13 @@ export function NewMovementModal({ isOpen, onClose, onSuccess }: NewMovementModa
       const response = await fetch('/api/products?limit=1000&status=active')
       if (response.ok) {
         const data = await response.json()
-        setProducts(data.products || [])
+        console.log('🔍 NewMovementModal - Products response:', data)
+        
+        // 🔥 FIX: Extraire le tableau de produits de la réponse
+        const productsArray = Array.isArray(data.products) ? data.products : (Array.isArray(data) ? data : [])
+        console.log('🔎 NewMovementModal - Products array is valid:', Array.isArray(productsArray), 'Length:', productsArray.length)
+        
+        setProducts(productsArray)
       }
     } catch (error) {
       console.error('Erreur lors du chargement des produits:', error)
@@ -198,7 +204,7 @@ export function NewMovementModal({ isOpen, onClose, onSuccess }: NewMovementModa
                 ) : filteredProducts.length === 0 ? (
                   <div className="p-3 text-center text-gray-500">Aucun produit trouvé</div>
                 ) : (
-                  filteredProducts.map((product) => (
+                  Array.isArray(filteredProducts) && filteredProducts.map((product) => (
                     <button
                       key={product.id}
                       type="button"

@@ -69,8 +69,14 @@ export default function CollectionsPage() {
 
   const fetchCollections = async () => {
     try {
-      const data = await apiClient.get<Collection[]>('/collections?include=category')
-      setCollections(data)
+      const response = await apiClient.get('/collections?include=category') as any
+      console.log('🔍 Collections response:', response)
+      
+      // 🔥 FIX: Extraire le tableau de collections de la réponse
+      const collectionsArray = Array.isArray(response.collections) ? response.collections : (Array.isArray(response) ? response : [])
+      console.log('🔎 Collections array is valid:', Array.isArray(collectionsArray), 'Length:', collectionsArray.length)
+      
+      setCollections(collectionsArray)
     } catch (error) {
       console.error('Error fetching collections:', error)
       toast.error('Erreur lors du chargement des collections')
@@ -81,8 +87,14 @@ export default function CollectionsPage() {
 
   const fetchCategories = async () => {
     try {
-      const data = await apiClient.get<Category[]>('/categories')
-      setCategories(data)
+      const response = await apiClient.get('/categories') as any
+      console.log('🔍 Categories response for collections:', response)
+      
+      // 🔥 FIX: Extraire le tableau de catégories de la réponse
+      const categoriesArray = Array.isArray(response.categories) ? response.categories : (Array.isArray(response) ? response : [])
+      console.log('🔎 Categories array is valid:', Array.isArray(categoriesArray), 'Length:', categoriesArray.length)
+      
+      setCategories(categoriesArray)
     } catch (error) {
       console.error('Error fetching categories:', error)
       toast.error('Erreur lors du chargement des catégories')
@@ -266,7 +278,7 @@ export default function CollectionsPage() {
           transition={{ delay: 0.5 }}
           className="grid gap-6 md:grid-cols-2 lg:grid-cols-3"
         >
-          {filteredCollections.map((collection, index) => (
+          {Array.isArray(filteredCollections) && filteredCollections.map((collection, index) => (
             <motion.div
               key={collection.id}
               initial={{ opacity: 0, scale: 0.9 }}
@@ -423,7 +435,7 @@ export default function CollectionsPage() {
                   onChange={(e) => setNewCollection(prev => ({ ...prev, categoryId: e.target.value }))}
                 >
                   <option value="">Aucune catégorie</option>
-                  {categories.map((category) => (
+                  {Array.isArray(categories) && categories.map((category) => (
                     <option key={category.id} value={category.id}>
                       {category.name}
                     </option>
