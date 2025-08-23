@@ -1,12 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ['localhost'],
+    domains: ['api.birkshoes.store'], // <--- remplacer localhost par domaine API
     remotePatterns: [
       {
-        protocol: 'http',
-        hostname: 'localhost',
-        port: '4000',
+        protocol: 'https',
+        hostname: 'api.birkshoes.store',
+        port: '',
         pathname: '/uploads/**',
       },
     ],
@@ -15,10 +15,11 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:4000/api/:path*',
+        destination: 'https://api.birkshoes.store/api/:path*', // en prod, proxy vers API publique
       },
     ];
   },
 };
 
 module.exports = nextConfig;
+
